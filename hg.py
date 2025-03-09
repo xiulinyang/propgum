@@ -1,7 +1,6 @@
 
 import evaluate
 import transformers
-from jupyter_core.migrate import security_file
 from transformers import AutoModelForTokenClassification, Trainer, AutoTokenizer, DataCollatorForTokenClassification, \
     Trainer, TrainingArguments
 from transformers import AutoTokenizer, AutoModel
@@ -26,6 +25,8 @@ from transformers import PretrainedConfig
 from transformers import PretrainedConfig
 from transformers import DebertaPreTrainedModel, DebertaModel
 import torch.nn as nn
+from transformers import DebertaConfig
+
 
 MODEL_NAME = 'microsoft/deberta-base'
 DATA_PATH = 'tagger_new_convert/{}.new.sample.tab'
@@ -92,7 +93,7 @@ def get_data_and_feature(split, feature_map):
 
 def preprocess_function(examples):
 
-    tokenized_inputs = tokenizer(examples['tokens'], truncation=True, is_split_into_words=True)
+    tokenized_inputs = tokenizer(examples['tokens'], truncation=True,padding='max_length', max_length=max_len,  is_split_into_words=True)
 
 
     labels = []
@@ -175,7 +176,7 @@ class CustomDataCollator(DataCollatorForTokenClassification):
 
 
 
-class CustomModelConfig(PretrainedConfig):
+class CustomModelConfig(DebertaConfig):
     model_type = "deberta"
 
     def __init__(self, upos_size=0, att_size=0, deprel_size=0, embedding_dim=embedding_dim,hidden_size=768, num_hidden_layers=12,
@@ -313,7 +314,7 @@ if __name__ == '__main__':
     test_dataset = test_dataset.map(preprocess_function, batched=True)
 
 
-
+    print(train_dataset[0])
 
     dataset_dict = DatasetDict({
         'train': train_dataset,
