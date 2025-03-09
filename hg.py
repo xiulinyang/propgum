@@ -64,9 +64,8 @@ def get_label_maps(splits, FEATURES):
     return label_map
 
 
-def convert_data(data, feature_maps, batch_size=BATCH_SIZE):
+def convert_data(data, feature_maps):
     converted_data = []
-    batch = []
     for i, dt in tqdm(enumerate(data)):
         lines = dt.split('\n')
         text = [x.split('\t')[0] for x in lines]
@@ -81,60 +80,47 @@ def convert_data(data, feature_maps, batch_size=BATCH_SIZE):
             'deprel_ids': deprel,
             'ner_tags': ner
         }
-        batch.append(converted)
-        if len(batch) == batch_size or i == len(data) - 1:
-            converted_data.append(batch)
-            batch = []
+        converted_data.append(converted)
     return converted_data
 
+def get_data_and_feature(split, feature_map):
+    data_split = Path(DATA_PATH.format(split)).read_text().strip().split('\n\n')
+    converted_data = convert_data(data_split, feature_map)
+    return Dataset.from_list(converted_data)
 
-def preprocess_function(examples):
-    print(f'Processing {len(examples)} examples at a time')
-    processd_batch = []
-    
-    for example in examples:
-        print(example)
-        tokenized_seq = tokenizer(example['tokens'])
-        labels = []
-        pos_featurs = []
-        att_features = []
-        deprel_features = []
-        for i, label in enumerate(examples["ner_tags"]):
-            # label = classmap.str2int(label)
-            word_ids = tokenized_seq.word_ids(batch_index=i)
-            previous_word_idx = None
-            label_ids = []
-            pos_ids = []
-            att_ids = []
-            deprel_ids = []
-            for word_idx in word_ids:
-                if word_idx is None:
-                    label_ids.append(-100)
-                    pos_ids.append(-100)
-                    att_ids.append(-100)
-                    deprel_ids.append(-100)
-                elif word_idx != previous_word_idx:
-                    label_ids.append(label[word_idx])
-                    pos_ids.append(examples['upos_ids'][word_idx])
-                    att_ids.append(examples['att_ids'][word_idx])
-                    deprel_ids.append(examples['deprel_ids'][word_idx])
 
-                else:
-                    label_ids.append(label[word_idx] if label_all_tokens else -100)
-                    pos_ids.append(examples['upos_ids'][word_idx])
-                    att_ids.append(examples['att_ids'][word_idx])
-                    deprel_ids.append(examples['deprel_ids'][word_idx])
-                previous_word_idx = word_idx
-            labels.append(label_ids)
-            pos_featurs.append(pos_ids)
-            att_features.append(att_ids)
-            deprel_features.append(deprel_ids)
-        tokenized_seq["labels"] = labels
-        tokenized_seq["pos_ids"] = pos_featurs
-        tokenized_seq["att_ids"] = att_features
-        tokenized_seq["deprel_ids"] = deprel_features
-        processd_batch.append(tokenized_seq)
-    return processd_batch
+def preprocess_function(example):
+    tokenized_seq = tokenizer(example['tokens'])
+    label_ids = []
+    pos_ids = []
+    att_ids = []
+    deprel_ids = []
+    for i, label in enumerate(example["ner_tags"]):
+        word_ids = tokenized_seq.word_ids(batch_index=i)
+        previous_word_idx = None
+        for word_idx in word_ids:
+            if word_idx is None:
+                label_ids.append(-100)
+                pos_ids.append(-100)
+                att_ids.append(-100)
+                deprel_ids.append(-100)
+            elif word_idx != previous_word_idx:
+                label_ids.append(label[word_idx])
+                pos_ids.append(example['upos_ids'][word_idx])
+                att_ids.append(example['att_ids'][word_idx])
+                deprel_ids.append(example['deprel_ids'][word_idx])
+            else:
+                label_ids.append(label[word_idx] if label_all_tokens else -100)
+                pos_ids.append(example['upos_ids'][word_idx])
+                att_ids.append(example['att_ids'][word_idx])
+                deprel_ids.append(example['deprel_ids'][word_idx])
+            previous_word_idx = word_idx
+
+    tokenized_seq["labels"] = label_ids
+    tokenized_seq["pos_ids"] = pos_ids
+    tokenized_seq["att_ids"] = att_ids
+    tokenized_seq["deprel_ids"] = deprel_ids
+    return tokenized_seq
 
 
 class CustomDataCollator(DataCollatorForTokenClassification):
@@ -158,13 +144,7 @@ class CustomDataCollator(DataCollatorForTokenClassification):
         return batch
 
 
-def get_data_and_feature(split, feature_map):
-    data_split = Path(DATA_PATH.format(split)).read_text().strip().split('\n\n')
-    converted_data = convert_data(data_split, feature_map)
-    flattened_data = [item for sublist in converted_data for item in sublist]
 
-    return Dataset.from_list(flattened_data)
-    # return Dataset.from_pandas(pd.DataFrame(data=converted_data))
 
 
 class CustomModelConfig(PretrainedConfig):
@@ -292,10 +272,11 @@ if __name__ == '__main__':
     train_dataset = get_data_and_feature('dev', feature_map_map)
     dev_dataset = get_data_and_feature('dev', feature_map_map)
     test_dataset = get_data_and_feature('test', feature_map_map)
-    print(dev_dataset)
+
     ner_labels = list(set(
         [x for y in train_dataset['ner_tags'] + dev_dataset['ner_tags'] + test_dataset['ner_tags'] for x in y]))
     classmap = ClassLabel(num_classes=len(ner_labels), names=list(ner_labels))
+
     train_dataset = train_dataset.map(preprocess_function, batched=True)
     dev_dataset = dev_dataset.map(preprocess_function, batched=True)
     test_dataset = test_dataset.map(preprocess_function, batched=True)
