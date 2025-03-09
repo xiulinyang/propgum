@@ -1,6 +1,7 @@
 
 import evaluate
 import transformers
+from jupyter_core.migrate import security_file
 from transformers import AutoModelForTokenClassification, Trainer, AutoTokenizer, DataCollatorForTokenClassification, \
     Trainer, TrainingArguments
 from transformers import AutoTokenizer, AutoModel
@@ -177,8 +178,8 @@ class CustomDataCollator(DataCollatorForTokenClassification):
 class CustomModelConfig(PretrainedConfig):
     model_type = "deberta"
 
-    def __init__(self, upos_size=0, att_size=0, deprel_size=0, embedding_dim=embedding_dim, model_checkpoint=None,
-                 num_labels=None, **kwargs):
+    def __init__(self, upos_size=0, att_size=0, deprel_size=0, embedding_dim=embedding_dim,hidden_size=768, num_hidden_layers=12,
+        num_attention_heads=12, model_checkpoint=None, num_labels=None, **kwargs):
         super().__init__(**kwargs)
         self.model_checkpoint = model_checkpoint
         self.num_labels = num_labels
@@ -186,6 +187,9 @@ class CustomModelConfig(PretrainedConfig):
         self.att_size = att_size
         self.deprel_size = deprel_size
         self.embedding_dim = embedding_dim
+        self.hidden_size = hidden_size
+        self.num_hidden_layers = num_hidden_layers
+        self.num_attention_heads = num_attention_heads
 
     @classmethod
     def from_pretrained(cls, *args, **kwargs):
@@ -303,7 +307,7 @@ if __name__ == '__main__':
     ner_labels = list(set(
         [x for y in train_dataset['ner_tags'] + dev_dataset['ner_tags'] + test_dataset['ner_tags'] for x in y]))
     classmap = ClassLabel(num_classes=len(ner_labels), names=list(ner_labels))
-    
+
     train_dataset = train_dataset.map(preprocess_function, batched=True)
     dev_dataset = dev_dataset.map(preprocess_function, batched=True)
     test_dataset = test_dataset.map(preprocess_function, batched=True)
