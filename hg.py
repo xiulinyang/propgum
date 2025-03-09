@@ -273,13 +273,15 @@ if __name__ == '__main__':
     dev_dataset = get_data_and_feature('dev', feature_map_map)
     test_dataset = get_data_and_feature('test', feature_map_map)
 
-    ner_labels = list(set(
-        [x for y in train_dataset['ner_tags'] + dev_dataset['ner_tags'] + test_dataset['ner_tags'] for x in y]))
-    classmap = ClassLabel(num_classes=len(ner_labels), names=list(ner_labels))
 
     train_dataset = train_dataset.map(preprocess_function, batched=True)
     dev_dataset = dev_dataset.map(preprocess_function, batched=True)
     test_dataset = test_dataset.map(preprocess_function, batched=True)
+
+    ner_labels = list(set(
+        [x for y in train_dataset['ner_tags'] + dev_dataset['ner_tags'] + test_dataset['ner_tags'] for x in y]))
+    classmap = ClassLabel(num_classes=len(ner_labels), names=list(ner_labels))
+
 
     dataset_dict = DatasetDict({
         'train': train_dataset,
