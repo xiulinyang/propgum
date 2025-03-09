@@ -218,41 +218,45 @@ class CustomModelforClassification(DebertaPreTrainedModel):
         self.deprel_embed = nn.Embedding(config.deprel_size, config.embedding_dim)
         self.classifier = nn.Linear(config.hidden_size + 3 * config.embedding_dim, config.num_labels)
 
-        
-
-
+    def forward(self, input_ids, attention_mask, upos_ids, att_ids, deprel_ids, labels=None):
+        outputs = self.deberta(input_ids, attention_mask=attention_mask)
+        sequence_output = outputs.last_hidden_state  # [batch, seq_len, hidden_size]
+        print('sequence_output: # [batch, seq_len, hidden_size]', sequence_output.shape)
         upos_emb = self.upos_embed(upos_ids)  # [batch, seq_len, embedding_dim]
         att_emb = self.att_embed(att_ids)
         deprel_emb = self.deprel_embed(deprel_ids)
         combined = torch.cat([sequence_output, upos_emb, att_emb, deprel_emb], dim=-1)
+        print('combined: # [batch, seq_len, hidden_size+150]', sequence_output.shape)
         logits = self.classifier(combined)
 
         loss = None
         if labels is not None:
             loss_fct = nn.CrossEntropyLoss(ignore_index=-100)
-            active_loss = attention_mask.view(-1) == 1
+            active_loss = (attention_mask.view(-1) == 1).bool()
             logits_flat = logits.view(-1, self.config.num_labels)  # [batch_size * sequence_length, num_labels]
+
             print('==============================')
             print(logits_flat.shape)
             print(active_loss.shape)
             print("active_loss 中 True 的数量:", active_loss.sum().item())
             print("logits_flat 的长度:", logits_flat.size(0))
-            assert active_loss.sum().item() <= logits_flat.size(0), "active_loss 中 True 的数量超过了 logits_flat 的长度"
-            print("labels 的最小值:", torch.min(labels))
-            print("labels 的最大值:", torch.max(labels))
-            assert labels.ge(0).all() and labels.lt(self.config.num_labels).all(), "labels 的值超出了范围"
+            assert active_loss.sum().item() <= logits_flat.size(0), "active_loss 的 True 数量超过 logits_flat 的长度"
+
+            valid_labels = labels[labels != -100]  # 过滤掉 ignore_index=-100
+            print("labels 的最小值:", torch.min(valid_labels) if valid_labels.numel() > 0 else "无有效 labels")
+            print("labels 的最大值:", torch.max(valid_labels) if valid_labels.numel() > 0 else "无有效 labels")
+            assert valid_labels.ge(0).all() and valid_labels.lt(self.config.num_labels).all(), "labels 超出范围"
+
             print('==============================')
 
-
-            active_loss = attention_mask.view(-1) == 1  # [batch_size * sequence_length]
-            assert len(active_loss) == logits_flat.size(0), "active_loss 的长度与 logits 展平后的长度不匹配"
-            print("logits_flat shape:", logits_flat.shape) 
+            # 这里修正拼写错误
+            print("logits_flat shape:", logits_flat.shape)
             print(logits_flat)
-            print(activate_loss)
+            print(active_loss)  # 修正拼写错误
             print(len(logits_flat))
-            print(len(activate_loss))
+            print(len(active_loss))
+
             active_logits = logits_flat[active_loss]  # [num_active_tokens, num_labels]
-            active_logits = logits.view(-1, self.config.num_labels)[active_loss]
             active_labels = labels.view(-1)[active_loss]
             loss = loss_fct(active_logits, active_labels)
 
