@@ -86,7 +86,7 @@ def convert_data(data, feature_maps):
 def get_data_and_feature(split, feature_map):
     data_split = Path(DATA_PATH.format(split)).read_text().strip().split('\n\n')
     converted_data = convert_data(data_split, feature_map)
-    return Dataset.from_list(converted_data)
+    return converted_data
 
 
 def preprocess_function(example):
