@@ -219,49 +219,40 @@ class CustomModelforClassification(DebertaPreTrainedModel):
         self.classifier = nn.Linear(config.hidden_size + 3 * config.embedding_dim, config.num_labels)
 
     def forward(self, input_ids, attention_mask, upos_ids, att_ids, deprel_ids, labels=None):
-        print(f'hhhhhhhhhh{labels}')
-        print("模型 num_labels:", self.config.num_labels)
-        print(labels.shape)
         outputs = self.deberta(input_ids, attention_mask=attention_mask)
         sequence_output = outputs.last_hidden_state  # [batch, seq_len, hidden_size]
-        print('sequence_output: # [batch, seq_len, hidden_size]', sequence_output.shape)
+
         upos_emb = self.upos_embed(upos_ids)  # [batch, seq_len, embedding_dim]
         att_emb = self.att_embed(att_ids)
         deprel_emb = self.deprel_embed(deprel_ids)
+
         combined = torch.cat([sequence_output, upos_emb, att_emb, deprel_emb], dim=-1)
-        print('combined: # [batch, seq_len, hidden_size+150]', combined.shape)
         logits = self.classifier(combined)
-        print(labels)
-        print('above is labels')
+
         loss = None
         if labels is not None:
+            # 检查标签范围
+            valid_labels = labels[labels != -100]
+            if valid_labels.numel() > 0:
+                assert valid_labels.min() >= 0 and valid_labels.max() < self.config.num_labels, \
+                    f"标签值越界: 最小值={valid_labels.min()}, 最大值={valid_labels.max()}, num_labels={self.config.num_labels}"
+
+            # 计算损失
             loss_fct = nn.CrossEntropyLoss(ignore_index=-100)
-            logits_flat = logits.view(-1, self.config.num_labels)  # [batch_size * sequence_length, num_labels]
+            logits_flat = logits.view(-1, self.config.num_labels)  # [batch_size * seq_len, num_labels]
+            labels_flat = labels.view(-1)  # [batch_size * seq_len]
+
+            # 过滤无效位置（忽略 -100）
+            active_loss = labels_flat != -100
             active_indices = active_loss.nonzero().squeeze()
-            active_logits = logits_flat[active_indices]
-            active_labels = labels.view(-1)[active_indices]
-            print('==============================')
-            print(labels)
-            print('hhhhhhhhhhhhhhhh')
-            print(logits_flat.shape)
-            print(active_loss.shape)
-            print("logits_flat 的长度:", logits_flat.size(0))
 
-            valid_labels = labels[labels != -100]  # 过滤掉 ignore_index=-100
-            print("labels 的最小值:", torch.min(valid_labels) if valid_labels.numel() > 0 else "无有效 labels")
-            print("labels 的最大值:", torch.max(valid_labels) if valid_labels.numel() > 0 else "无有效 labels")
-            assert valid_labels.ge(0).all() and valid_labels.lt(self.config.num_labels).all(), "labels 超出范围"
-
-            print('==============================')
-
-            # 这里修正拼写错误
-            print("logits_flat shape:", logits_flat.shape)
-            print(logits_flat)
-            print(active_loss)  # 修正拼写错误
-            print(len(logits_flat))
-            print(len(active_loss))
-
-            loss = loss_fct(active_logits, active_labels)
+            # 处理全为 -100 的特殊情况
+            if active_indices.numel() == 0:
+                loss = torch.tensor(0.0, device=logits.device)
+            else:
+                active_logits = logits_flat[active_indices]
+                active_labels = labels_flat[active_indices]
+                loss = loss_fct(active_logits, active_labels)
 
         output = (logits,) + outputs[2:]
         return ((loss,) + output) if loss is not None else output
