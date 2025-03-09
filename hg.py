@@ -219,6 +219,9 @@ class CustomModelforClassification(DebertaPreTrainedModel):
         self.classifier = nn.Linear(config.hidden_size + 3 * config.embedding_dim, config.num_labels)
 
     def forward(self, input_ids, attention_mask, upos_ids, att_ids, deprel_ids, labels=None):
+        print(f'hhhhhhhhhh{labels}')
+        print("模型 num_labels:", self.config.num_labels)
+        print(labels.shape)
         outputs = self.deberta(input_ids, attention_mask=attention_mask)
         sequence_output = outputs.last_hidden_state  # [batch, seq_len, hidden_size]
         print('sequence_output: # [batch, seq_len, hidden_size]', sequence_output.shape)
@@ -226,21 +229,23 @@ class CustomModelforClassification(DebertaPreTrainedModel):
         att_emb = self.att_embed(att_ids)
         deprel_emb = self.deprel_embed(deprel_ids)
         combined = torch.cat([sequence_output, upos_emb, att_emb, deprel_emb], dim=-1)
-        print('combined: # [batch, seq_len, hidden_size+150]', sequence_output.shape)
+        print('combined: # [batch, seq_len, hidden_size+150]', combined.shape)
         logits = self.classifier(combined)
-
+        print(labels)
+        print('above is labels')
         loss = None
         if labels is not None:
             loss_fct = nn.CrossEntropyLoss(ignore_index=-100)
-            active_loss = (attention_mask.view(-1) == 1).bool()
             logits_flat = logits.view(-1, self.config.num_labels)  # [batch_size * sequence_length, num_labels]
-
+            active_indices = active_loss.nonzero().squeeze()
+            active_logits = logits_flat[active_indices]
+            active_labels = labels.view(-1)[active_indices]
             print('==============================')
+            print(labels)
+            print('hhhhhhhhhhhhhhhh')
             print(logits_flat.shape)
             print(active_loss.shape)
-            print("active_loss 中 True 的数量:", active_loss.sum().item())
             print("logits_flat 的长度:", logits_flat.size(0))
-            assert active_loss.sum().item() <= logits_flat.size(0), "active_loss 的 True 数量超过 logits_flat 的长度"
 
             valid_labels = labels[labels != -100]  # 过滤掉 ignore_index=-100
             print("labels 的最小值:", torch.min(valid_labels) if valid_labels.numel() > 0 else "无有效 labels")
@@ -256,8 +261,6 @@ class CustomModelforClassification(DebertaPreTrainedModel):
             print(len(logits_flat))
             print(len(active_loss))
 
-            active_logits = logits_flat[active_loss]  # [num_active_tokens, num_labels]
-            active_labels = labels.view(-1)[active_loss]
             loss = loss_fct(active_logits, active_labels)
 
         output = (logits,) + outputs[2:]
