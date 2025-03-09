@@ -86,41 +86,68 @@ def convert_data(data, feature_maps):
 def get_data_and_feature(split, feature_map):
     data_split = Path(DATA_PATH.format(split)).read_text().strip().split('\n\n')
     converted_data = convert_data(data_split, feature_map)
-    return converted_data
+    return Dataset.from_list(converted_data)
 
 
-def preprocess_function(example):
-    tokenized_seq = tokenizer(example['tokens'])
-    label_ids = []
-    pos_ids = []
-    att_ids = []
-    deprel_ids = []
-    for i, label in enumerate(example["ner_tags"]):
-        word_ids = tokenized_seq.word_ids(batch_index=i)
+def preprocess_function(examples):
+
+    tokenized_inputs = tokenizer(examples['tokens'], truncation=True, is_split_into_words=True)
+
+
+    labels = []
+    pos_features = []
+    att_features = []
+    deprel_features = []
+
+
+    for i, label in enumerate(examples["ner_tags"]):
+
+        label = classmap.str2int(label)
+
+
+        word_ids = tokenized_inputs.word_ids(batch_index=i)
         previous_word_idx = None
+
+
+        label_ids = []
+        pos_ids = []
+        att_ids = []
+        deprel_ids = []
+
         for word_idx in word_ids:
             if word_idx is None:
+
                 label_ids.append(-100)
                 pos_ids.append(-100)
                 att_ids.append(-100)
                 deprel_ids.append(-100)
             elif word_idx != previous_word_idx:
+
                 label_ids.append(label[word_idx])
-                pos_ids.append(example['upos_ids'][word_idx])
-                att_ids.append(example['att_ids'][word_idx])
-                deprel_ids.append(example['deprel_ids'][word_idx])
+                pos_ids.append(examples['upos_ids'][i][word_idx])
+                att_ids.append(examples['att_ids'][i][word_idx])
+                deprel_ids.append(examples['deprel_ids'][i][word_idx])
             else:
+
                 label_ids.append(label[word_idx] if label_all_tokens else -100)
-                pos_ids.append(example['upos_ids'][word_idx])
-                att_ids.append(example['att_ids'][word_idx])
-                deprel_ids.append(example['deprel_ids'][word_idx])
+                pos_ids.append(examples['upos_ids'][i][word_idx])
+                att_ids.append(examples['att_ids'][i][word_idx])
+                deprel_ids.append(examples['deprel_ids'][i][word_idx])
             previous_word_idx = word_idx
 
-    tokenized_seq["labels"] = label_ids
-    tokenized_seq["pos_ids"] = pos_ids
-    tokenized_seq["att_ids"] = att_ids
-    tokenized_seq["deprel_ids"] = deprel_ids
-    return tokenized_seq
+
+        labels.append(label_ids)
+        pos_features.append(pos_ids)
+        att_features.append(att_ids)
+        deprel_features.append(deprel_ids)
+
+
+    tokenized_inputs["labels"] = labels
+    tokenized_inputs["pos_ids"] = pos_features
+    tokenized_inputs["att_ids"] = att_features
+    tokenized_inputs["deprel_ids"] = deprel_features
+
+    return tokenized_inputs
 
 
 class CustomDataCollator(DataCollatorForTokenClassification):
