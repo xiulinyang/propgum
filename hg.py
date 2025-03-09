@@ -1,5 +1,3 @@
-from cProfile import label
-from xml.sax.handler import all_features
 
 import evaluate
 import transformers
@@ -9,7 +7,7 @@ from transformers import AutoTokenizer, AutoModel
 import torch
 import datasets
 import evaluate
-
+from tqdm import tqdm
 from datasets import load_dataset
 from datasets import Features, Sequence, Value, ClassLabel
 from transformers import DataCollatorForTokenClassification
@@ -29,7 +27,7 @@ from transformers import DebertaPreTrainedModel, DebertaModel
 import torch.nn as nn
 
 MODEL_NAME = 'microsoft/deberta-base'
-DATA_PATH = '/content/drive/MyDrive/SLR_GUM/tagger_new_convert/{}.new.sample.tab'
+DATA_PATH = 'tagger_new_convert/{}.new.sample.tab'
 FEATURES = ['upos', 'att', 'deprel']
 BATCH_SIZE = 8
 FEATURES_PATH = 'data/features.pkl'
@@ -69,7 +67,7 @@ def get_label_maps(splits, FEATURES):
 def convert_data(data, feature_maps, batch_size=BATCH_SIZE):
     converted_data = []
     batch = []
-    for i, dt in enumerate(data):
+    for i, dt in tqdm(enumerate(data)):
         lines = dt.split('\n')
         text = [x.split('\t')[0] for x in lines]
         upos = [feature_maps['upos'].get(x.split('\t')[1], feature_maps['upos']['UNK']) for x in lines]
@@ -87,14 +85,15 @@ def convert_data(data, feature_maps, batch_size=BATCH_SIZE):
         if len(batch) == batch_size or i == len(data) - 1:
             converted_data.append(batch)
             batch = []
-    print(converted_data)
     return converted_data
 
 
-def preprocess_function(examples, features):
+def preprocess_function(examples):
     print(f'Processing {len(examples)} examples at a time')
     processd_batch = []
+    
     for example in examples:
+        print(example)
         tokenized_seq = tokenizer(example['tokens'])
         labels = []
         pos_featurs = []
@@ -162,7 +161,6 @@ class CustomDataCollator(DataCollatorForTokenClassification):
 def get_data_and_feature(split, feature_map):
     data_split = Path(DATA_PATH.format(split)).read_text().strip().split('\n\n')
     converted_data = convert_data(data_split, feature_map)
-    print(converted_data)
     flattened_data = [item for sublist in converted_data for item in sublist]
 
     return Dataset.from_list(flattened_data)
