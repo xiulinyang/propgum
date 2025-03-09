@@ -145,7 +145,7 @@ def preprocess_function(examples):
 
 
     tokenized_inputs["labels"] = labels
-    tokenized_inputs["pos_ids"] = pos_features
+    tokenized_inputs["upos_ids"] = pos_features
     tokenized_inputs["att_ids"] = att_features
     tokenized_inputs["deprel_ids"] = deprel_features
 
