@@ -90,6 +90,7 @@ def get_data_and_feature(split, feature_map):
 
 
 def preprocess_function(example):
+    print(example['tokens'])
     tokenized_seq = tokenizer(example['tokens'])
     label_ids = []
     pos_ids = []
