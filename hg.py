@@ -218,9 +218,9 @@ class CustomModelforClassification(DebertaPreTrainedModel):
         self.deprel_embed = nn.Embedding(config.deprel_size, config.embedding_dim)
         self.classifier = nn.Linear(config.hidden_size + 3 * config.embedding_dim, config.num_labels)
 
-    def forward(self, input_ids, attention_mask, upos_ids, att_ids, deprel_ids, labels=None):
-        outputs = self.deberta(input_ids, attention_mask=attention_mask)
-        sequence_output = outputs.last_hidden_state  # [batch, seq_len, hidden_size]
+        
+
+
         upos_emb = self.upos_embed(upos_ids)  # [batch, seq_len, embedding_dim]
         att_emb = self.att_embed(att_ids)
         deprel_emb = self.deprel_embed(deprel_ids)
@@ -231,6 +231,27 @@ class CustomModelforClassification(DebertaPreTrainedModel):
         if labels is not None:
             loss_fct = nn.CrossEntropyLoss(ignore_index=-100)
             active_loss = attention_mask.view(-1) == 1
+            logits_flat = logits.view(-1, self.config.num_labels)  # [batch_size * sequence_length, num_labels]
+            print('==============================')
+            print(logits_flat.shape)
+            print(active_loss.shape)
+            print("active_loss 中 True 的数量:", active_loss.sum().item())
+            print("logits_flat 的长度:", logits_flat.size(0))
+            assert active_loss.sum().item() <= logits_flat.size(0), "active_loss 中 True 的数量超过了 logits_flat 的长度"
+            print("labels 的最小值:", torch.min(labels))
+            print("labels 的最大值:", torch.max(labels))
+            assert labels.ge(0).all() and labels.lt(self.config.num_labels).all(), "labels 的值超出了范围"
+            print('==============================')
+
+
+            active_loss = attention_mask.view(-1) == 1  # [batch_size * sequence_length]
+            assert len(active_loss) == logits_flat.size(0), "active_loss 的长度与 logits 展平后的长度不匹配"
+            print("logits_flat shape:", logits_flat.shape) 
+            print(logits_flat)
+            print(activate_loss)
+            print(len(logits_flat))
+            print(len(activate_loss))
+            active_logits = logits_flat[active_loss]  # [num_active_tokens, num_labels]
             active_logits = logits.view(-1, self.config.num_labels)[active_loss]
             active_labels = labels.view(-1)[active_loss]
             loss = loss_fct(active_logits, active_labels)
@@ -308,6 +329,9 @@ if __name__ == '__main__':
     ner_labels = list(set(
         [x for y in train_dataset['ner_tags'] + dev_dataset['ner_tags'] + test_dataset['ner_tags'] for x in y]))
     classmap = ClassLabel(num_classes=len(ner_labels), names=list(ner_labels))
+
+    print(classmap)
+    print('===========================')
 
     train_dataset = train_dataset.map(preprocess_function, batched=True)
     dev_dataset = dev_dataset.map(preprocess_function, batched=True)
