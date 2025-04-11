@@ -297,7 +297,7 @@ def write_pred(split, output_file):
     label = result.label_ids
     text = [x['tokens'] for x in dataset_dict[split]]
     labels = [x['ner_tags'] for x in dataset_dict[split]]
-    print(text[0], label[0], labels[0])
+    print(text[0], label[0], label[1],labels[0])
 
     with open(output_file, 'w') as out_f:
         for j, (predictions, labels) in enumerate(zip(prediction, label)):
@@ -337,9 +337,9 @@ if __name__ == '__main__':
     feature_map_map = {'upos': upos_map, 'att': att_map, 'deprel': deprel_map}
     #####################################################################################
 
-    train_dataset = get_data_and_feature('dev', feature_map_map)
-    dev_dataset = get_data_and_feature('dev', feature_map_map)
-    test_dataset = get_data_and_feature('dev', feature_map_map)
+    train_dataset = get_data_and_feature(train, feature_map_map)
+    dev_dataset = get_data_and_feature(dev, feature_map_map)
+    test_dataset = get_data_and_feature(test, feature_map_map)
 
     ner_labels = list(set(
         [x for y in train_dataset['ner_tags'] + dev_dataset['ner_tags'] + test_dataset['ner_tags'] for x in y]))
