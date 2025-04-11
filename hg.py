@@ -26,7 +26,7 @@ from transformers import PretrainedConfig
 from transformers import DebertaPreTrainedModel, DebertaModel
 import torch.nn as nn
 from transformers import DebertaConfig
-
+import argparse
 
 MODEL_NAME = 'microsoft/deberta-base'
 DATA_PATH = 'tagger_new/{}.new.sample.tab'
@@ -310,11 +310,24 @@ def write_pred(split, output_file):
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='add training hyperparameters')
+    parser.add_argument('-train', '--training_split', type=str, default='train')
+    parser.add_argument('-test', '--test_split', type=str, default='test')
+    parser.add_argument('-dev', '--dev_split', type=str, default='dev')
+    parser.add_argument('-c', '--checkpoint', default=None)
+
+    args = parser.parse_args()
+
+    train = args.training_split
+    dev = args.dev_split
+    test = args.test_split
+    checkpoint = args.checkpoint
+
     data_collator = CustomDataCollator(tokenizer=tokenizer)
 
     ###################################################################################
     ################# get features ###################################################
-    feature_maps = get_label_maps(['dev', 'dev', 'dev'], FEATURES)
+    feature_maps = get_label_maps([train, dev, test], FEATURES)
 
     upos_map = feature_maps['upos']
     att_map = feature_maps['att']
@@ -346,22 +359,31 @@ if __name__ == '__main__':
         'test': test_dataset
     })
 
-    model_config = CustomModelConfig(model_checkpoint=MODEL_NAME, num_labels=len(classmap.names),
-                                     upos_size=len(feature_maps['upos']), att_size=len(feature_maps['att']),
-                                     deprel_size=len(feature_maps['deprel']))
-    model = CustomModelforClassification(model_config)
-    trainer = Trainer(
-        model=model,
-        args=training_args,
-        train_dataset=dataset_dict["train"],
-        eval_dataset=dataset_dict["validation"],
-        data_collator=data_collator,
-        tokenizer=tokenizer,
-        compute_metrics=compute_metrics
-    )
 
-    trainer.train()
-    trainer.evaluate()
+    if checkpoint:
+        model_config = CustomModelConfig(model_checkpoint=checkpoint, num_labels=len(classmap.names),
+                                         upos_size=len(feature_maps['upos']), att_size=len(feature_maps['att']),
+                                         deprel_size=len(feature_maps['deprel']))
+        model = CustomModelforClassification.from_pretrained(checkpoint, config=model_config)
+    else:
+        model_config = CustomModelConfig(model_checkpoint=MODEL_NAME, num_labels=len(classmap.names),
+                                         upos_size=len(feature_maps['upos']), att_size=len(feature_maps['att']),
+                                         deprel_size=len(feature_maps['deprel']))
+        model = CustomModelforClassification(model_config)
+
+    trainer = Trainer(
+            model=model,
+            args=training_args,
+            train_dataset=dataset_dict["train"],
+            eval_dataset=dataset_dict["validation"],
+            data_collator=data_collator,
+            tokenizer=tokenizer,
+            compute_metrics=compute_metrics
+        )
+
+    if not checkpoint:
+        trainer.train()
+        trainer.evaluate()
     write_pred('validation', 'pred-dev.tsv')
     write_pred('test', 'pred-test.tsv')
 
