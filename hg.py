@@ -29,7 +29,7 @@ from transformers import DebertaConfig
 
 
 MODEL_NAME = 'microsoft/deberta-base'
-DATA_PATH = 'tagger_new_convert/{}.new.sample.tab'
+DATA_PATH = 'tagger_new/{}.new.sample.tab'
 FEATURES = ['upos', 'att', 'deprel']
 BATCH_SIZE = 8
 FEATURES_PATH = 'data/features.pkl'
@@ -47,14 +47,14 @@ def get_label_maps(splits, FEATURES):
     label_lists = {f: [] for f in FEATURES}
     label_map = {}
     for dt in datasets:
-        text = [x.split('\t')[0] for x in dt.split('\n')]
-        upos = [x.split('\t')[2] for x in dt.split('\n')]
-        att = [x.split('\t')[4] for x in dt.split('\n')]
-        deprel = [x.split('\t')[3] for x in dt.split('\n')]
-        arg1 = [x.split('\t')[5] for x in dt.split('\n')]
-        arg2 = [x.split('\t')[6] for x in dt.split('\n')]
-        arg3 = [x.split('\t')[7] for x in dt.split('\n')]
-        ner = [x.split('\t')[8] for x in dt.split('\n')]
+        text = [x.split()[0] for x in dt.split('\n')]
+        upos = [x.split()[1] for x in dt.split('\n')]
+        att = [x.split()[3] for x in dt.split('\n')]
+        deprel = [x.split()[2] for x in dt.split('\n')]
+        arg1 = [x.split()[4] for x in dt.split('\n')]
+        arg2 = [x.split()[5] for x in dt.split('\n')]
+        arg3 = [x.split()[6] for x in dt.split('\n')]
+        ner = [x.split()[7] for x in dt.split('\n')]
         converted = {'tokens': text, 'upos': upos, 'att': att, 'deprel': deprel, 'arg1': arg1, 'arg2': arg2,
                      'arg3': arg3,
                      'ner_tags': ner}
@@ -70,11 +70,13 @@ def convert_data(data, feature_maps):
     converted_data = []
     for i, dt in tqdm(enumerate(data)):
         lines = dt.split('\n')
-        text = [x.split('\t')[0] for x in lines]
-        upos = [feature_maps['upos'].get(x.split('\t')[2], feature_maps['upos']['UNK']) for x in lines]
-        att = [feature_maps['att'].get(x.split('\t')[4], feature_maps['att']['UNK']) for x in lines]
-        deprel = [feature_maps['deprel'].get(x.split('\t')[3], feature_maps['deprel']['UNK']) for x in lines]
-        ner = [x.split('\t')[8] for x in lines]
+        text = [x.split()[0] for x in lines]
+        print(lines)
+        print([x.split('\t') for x in lines])
+        upos = [feature_maps['upos'].get(x.split()[1], feature_maps['upos']['UNK']) for x in lines]
+        att = [feature_maps['att'].get(x.split()[3], feature_maps['att']['UNK']) for x in lines]
+        deprel = [feature_maps['deprel'].get(x.split()[2], feature_maps['deprel']['UNK']) for x in lines]
+        ner = [x.split()[7] for x in lines]
         converted = {
             'tokens': text,
             'upos_ids': upos,
@@ -180,14 +182,14 @@ class CustomModelConfig(DebertaConfig):
     model_type = "deberta"
 
     def __init__(self, upos_size=0, att_size=0, deprel_size=0, embedding_dim=embedding_dim,hidden_size=768, num_hidden_layers=12,
-        num_attention_heads=12, model_checkpoint=None, num_labels=None, **kwargs):
+        num_attention_heads=12, model_checkpoint=None, num_labels=0, **kwargs):
         super().__init__(**kwargs)
         self.model_checkpoint = model_checkpoint
         self.num_labels = num_labels
         self.upos_size = upos_size
         self.att_size = att_size
-        self.deprel_size = deprel_size
         self.embedding_dim = embedding_dim
+        self.deprel_size = deprel_size
         self.hidden_size = hidden_size
         self.num_hidden_layers = num_hidden_layers
         self.num_attention_heads = num_attention_heads
@@ -222,9 +224,13 @@ class CustomModelforClassification(DebertaPreTrainedModel):
         outputs = self.deberta(input_ids, attention_mask=attention_mask)
         sequence_output = outputs.last_hidden_state  # [batch, seq_len, hidden_size]
         labels = labels.long()
-        print(labels)
-        valid_labels = labels[labels!=-100]
-        assert (valid_labels.min() >= 0).all() and (valid_labels.max() < 375).all(), "标签值越界！"
+        upos_ids = torch.where(upos_ids == -100, torch.tensor(0, device=upos_ids.device), upos_ids)
+        att_ids = torch.where(att_ids == -100, torch.tensor(0, device=att_ids.device), att_ids)
+        deprel_ids = torch.where(deprel_ids == -100, torch.tensor(0, device=deprel_ids.device), deprel_ids)
+        #print("upos_ids min:", upos_ids.min().item())
+        #print("upos_ids max:", upos_ids.max().item())
+        #print("Embedding table size:", self.upos_embed.weight.shape[0])
+        #print('valid_label:',labels)
         upos_emb = self.upos_embed(upos_ids)  # [batch, seq_len, embedding_dim]
         att_emb = self.att_embed(att_ids)
         deprel_emb = self.deprel_embed(deprel_ids)
@@ -234,22 +240,15 @@ class CustomModelforClassification(DebertaPreTrainedModel):
 
         loss = None
         if labels is not None:
-            # 检查标签范围
             valid_labels = labels[labels != -100]
-            if valid_labels.numel() > 0:
-                assert valid_labels.min() >= 0 and valid_labels.max() < self.config.num_labels, \
-                    f"标签值越界: 最小值={valid_labels.min()}, 最大值={valid_labels.max()}, num_labels={self.config.num_labels}"
 
-            # 计算损失
             loss_fct = nn.CrossEntropyLoss(ignore_index=-100)
             logits_flat = logits.view(-1, self.config.num_labels)  # [batch_size * seq_len, num_labels]
             labels_flat = labels.view(-1)  # [batch_size * seq_len]
 
-            # 过滤无效位置（忽略 -100）
             active_loss = labels_flat != -100
             active_indices = active_loss.nonzero().squeeze()
 
-            # 处理全为 -100 的特殊情况
             if active_indices.numel() == 0:
                 loss = torch.tensor(0.0, device=logits.device)
             else:
