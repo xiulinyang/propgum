@@ -71,8 +71,6 @@ def convert_data(data, feature_maps):
     for i, dt in tqdm(enumerate(data)):
         lines = dt.split('\n')
         text = [x.split()[0] for x in lines]
-        print(lines)
-        print([x.split('\t') for x in lines])
         upos = [feature_maps['upos'].get(x.split()[1], feature_maps['upos']['UNK']) for x in lines]
         att = [feature_maps['att'].get(x.split()[3], feature_maps['att']['UNK']) for x in lines]
         deprel = [feature_maps['deprel'].get(x.split()[2], feature_maps['deprel']['UNK']) for x in lines]
@@ -298,12 +296,16 @@ def write_pred(split, output_file):
     prediction = np.argmax(result.predictions, axis=2)
     label = result.label_ids
     text = [x['tokens'] for x in dataset_dict[split]]
+    labels = [x['ner_tags'] for x in dataset_dict[split]]
+    print(text, label, labels)
+
     with open(output_file, 'w') as out_f:
         for j, (predictions, labels) in enumerate(zip(prediction, label)):
             true_predictions = [classmap.int2str(int(prediction)) for prediction, label in zip(predictions, labels) if
                                 label != -100]
             true_labels = [classmap.int2str(int(label)) for prediction, label in zip(predictions, labels) if
                            label != -100]
+
             for i, token in enumerate(text[j]):
                 out_f.write(f'{token}\t{true_labels[i]}\t{true_predictions[i]}\n')
             out_f.write('\n')
