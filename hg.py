@@ -71,8 +71,8 @@ def convert_data(data, feature_maps):
     for i, dt in tqdm(enumerate(data)):
         lines = dt.split('\n')
         text = [x.split('\t')[0] for x in lines]
-        upos = [feature_maps['upos'].get(x.split('\t')[1], feature_maps['upos']['UNK']) for x in lines]
-        att = [feature_maps['att'].get(x.split('\t')[2], feature_maps['att']['UNK']) for x in lines]
+        upos = [feature_maps['upos'].get(x.split('\t')[2], feature_maps['upos']['UNK']) for x in lines]
+        att = [feature_maps['att'].get(x.split('\t')[4], feature_maps['att']['UNK']) for x in lines]
         deprel = [feature_maps['deprel'].get(x.split('\t')[3], feature_maps['deprel']['UNK']) for x in lines]
         ner = [x.split('\t')[8] for x in lines]
         converted = {
@@ -162,7 +162,7 @@ class CustomDataCollator(DataCollatorForTokenClassification):
             for f in features:
                 field_value = f[field_name]
                 pad_length = max_length - len(field_value)
-                padded_field = torch.tensor(field_value + [0] * pad_length, dtype=dtype)
+                padded_field = torch.tensor(field_value + [-100] * pad_length, dtype=dtype)
                 padded_tensors.append(padded_field)
             return torch.stack(padded_tensors)
 
@@ -221,7 +221,10 @@ class CustomModelforClassification(DebertaPreTrainedModel):
     def forward(self, input_ids, attention_mask, upos_ids, att_ids, deprel_ids, labels=None):
         outputs = self.deberta(input_ids, attention_mask=attention_mask)
         sequence_output = outputs.last_hidden_state  # [batch, seq_len, hidden_size]
-
+        labels = labels.long()
+        print(labels)
+        valid_labels = labels[labels!=-100]
+        assert (valid_labels.min() >= 0).all() and (valid_labels.max() < 375).all(), "标签值越界！"
         upos_emb = self.upos_embed(upos_ids)  # [batch, seq_len, embedding_dim]
         att_emb = self.att_embed(att_ids)
         deprel_emb = self.deprel_embed(deprel_ids)
@@ -312,7 +315,7 @@ if __name__ == '__main__':
 
     ###################################################################################
     ################# get features ###################################################
-    feature_maps = get_label_maps(['dev', 'dev', 'test'], FEATURES)
+    feature_maps = get_label_maps(['dev', 'dev', 'dev'], FEATURES)
 
     upos_map = feature_maps['upos']
     att_map = feature_maps['att']
@@ -322,7 +325,7 @@ if __name__ == '__main__':
 
     train_dataset = get_data_and_feature('dev', feature_map_map)
     dev_dataset = get_data_and_feature('dev', feature_map_map)
-    test_dataset = get_data_and_feature('test', feature_map_map)
+    test_dataset = get_data_and_feature('dev', feature_map_map)
 
     ner_labels = list(set(
         [x for y in train_dataset['ner_tags'] + dev_dataset['ner_tags'] + test_dataset['ner_tags'] for x in y]))
