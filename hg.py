@@ -297,7 +297,7 @@ def write_pred(split, output_file):
     label = result.label_ids
     text = [x['tokens'] for x in dataset_dict[split]]
     labels = [x['ner_tags'] for x in dataset_dict[split]]
-    print(text, label, labels)
+    print(text[0], label[0], labels[0])
 
     with open(output_file, 'w') as out_f:
         for j, (predictions, labels) in enumerate(zip(prediction, label)):
