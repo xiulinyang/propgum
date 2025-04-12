@@ -225,10 +225,6 @@ class CustomModelforClassification(DebertaPreTrainedModel):
         upos_ids = torch.where(upos_ids == -100, torch.tensor(0, device=upos_ids.device), upos_ids)
         att_ids = torch.where(att_ids == -100, torch.tensor(0, device=att_ids.device), att_ids)
         deprel_ids = torch.where(deprel_ids == -100, torch.tensor(0, device=deprel_ids.device), deprel_ids)
-        #print("upos_ids min:", upos_ids.min().item())
-        #print("upos_ids max:", upos_ids.max().item())
-        #print("Embedding table size:", self.upos_embed.weight.shape[0])
-        #print('valid_label:',labels)
         upos_emb = self.upos_embed(upos_ids)  # [batch, seq_len, embedding_dim]
         att_emb = self.att_embed(att_ids)
         deprel_emb = self.deprel_embed(deprel_ids)
@@ -269,6 +265,7 @@ def compute_metrics(p):
         [classmap.int2str(int(l)) for (p, l) in zip(prediction, label) if l != -100]
         for prediction, label in zip(predictions, labels)
     ]
+
 
     results = metric.compute(predictions=true_predictions, references=true_labels)
     return {
