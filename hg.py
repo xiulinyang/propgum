@@ -36,7 +36,7 @@ FEATURES_PATH = 'data/features.pkl'
 embedding_dim = 50
 label_all_tokens = True
 max_len = 256
-
+EPOCH=3
 metric = evaluate.load("seqeval")
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, add_prefix_space=True)
 assert isinstance(tokenizer, transformers.PreTrainedTokenizerFast)
@@ -282,8 +282,9 @@ training_args = TrainingArguments(
     learning_rate=0.0001,
     per_device_train_batch_size=8,
     per_device_eval_batch_size=8,
-    num_train_epochs=5,
+    num_train_epochs=EPOCH,
     weight_decay=0.01,
+    save_strategy='no',
     metric_for_best_model='accuracy',
 )
 
@@ -388,9 +389,12 @@ if __name__ == '__main__':
             compute_metrics=compute_metrics
         )
 
+
     if not checkpoint:
         trainer.train()
+        trainer.save_model(f'ner/')
         trainer.evaluate()
+    trainer.evaluate()
     write_pred('validation', 'pred-dev.tsv')
     write_pred('test', 'pred-test.tsv')
 
