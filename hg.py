@@ -371,6 +371,7 @@ if __name__ == '__main__':
                                          upos_size=len(feature_maps['upos']), att_size=len(feature_maps['att']),
                                          deprel_size=len(feature_maps['deprel']))
         model = CustomModelforClassification.from_pretrained(checkpoint, config=model_config)
+        model.eval()
     else:
         model_config = CustomModelConfig(model_checkpoint=MODEL_NAME, num_labels=len(classmap.names),
                                          upos_size=len(feature_maps['upos']), att_size=len(feature_maps['att']),
