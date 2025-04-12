@@ -295,7 +295,11 @@ def write_pred(split, output_file):
     text = [x['tokens'] for x in dataset_dict[split]]
     labels = [x['ner_tags'] for x in dataset_dict[split]]
     print(text[0], label[0], label[1],labels[0])
-
+    print('gold')
+    print(label[0])
+    print('pred')
+    print(label[1])
+    
     with open(output_file, 'w') as out_f:
         for j, (predictions, labels) in enumerate(zip(prediction, label)):
             true_predictions = [classmap.int2str(int(prediction)) for prediction, label in zip(predictions, labels) if
@@ -303,6 +307,9 @@ def write_pred(split, output_file):
             true_labels = [classmap.int2str(int(label)) for prediction, label in zip(predictions, labels) if
                            label != -100]
 
+            print('meta')
+            print(len(true_predictions))
+            print(len(true_labels))
             for i, token in enumerate(text[j]):
                 out_f.write(f'{token}\t{true_labels[i]}\t{true_predictions[i]}\n')
             out_f.write('\n')
