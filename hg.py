@@ -31,10 +31,9 @@ import argparse
 MODEL_NAME = 'microsoft/deberta-base'
 DATA_PATH = 'tagger_new/{}.new.sample.tab'
 FEATURES = ['upos', 'att', 'deprel']
-BATCH_SIZE = 32
+BATCH_SIZE = 8
 FEATURES_PATH = 'data/features.pkl'
 embedding_dim = 30
-label_all_tokens = True
 max_len = 256
 EPOCH=50
 metric = evaluate.load("seqeval")
@@ -62,7 +61,7 @@ def get_label_maps(splits, FEATURES):
             label_lists[feature].extend(converted[feature])
             label_lists[feature].append('UNK')
     for f in FEATURES:
-        label_map[f] = {lab: i for i, lab in enumerate(list(set(label_lists[f])))}
+        label_map[f] = {lab: i for i, lab in enumerate(sorted(list(set(label_lists[f]))))}
     return label_map
 
 
@@ -234,7 +233,7 @@ class CustomModelforClassification(DebertaPreTrainedModel):
 
         loss = None
         if labels is not None:
-            valid_labels = labels[labels != -100]
+            # labels = labels[labels != -100]
 
             loss_fct = nn.CrossEntropyLoss(ignore_index=-100)
             logits_flat = logits.view(-1, self.config.num_labels)  # [batch_size * seq_len, num_labels]
@@ -295,12 +294,6 @@ def write_pred(split, output_file):
     label = result.label_ids
     text = [x['tokens'] for x in dataset_dict[split]]
     labels = [x['ner_tags'] for x in dataset_dict[split]]
-    print(text[0], label[0], label[1],labels[0])
-    print('gold')
-    print(label[0])
-    print('pred')
-    print(label[1])
-    
     with open(output_file, 'w') as out_f:
         for j, (predictions, labels) in enumerate(zip(prediction, label)):
             true_predictions = [classmap.int2str(int(prediction)) for prediction, label in zip(predictions, labels) if
@@ -318,9 +311,9 @@ def write_pred(split, output_file):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='add training hyperparameters')
-    parser.add_argument('-train', '--training_split', type=str, default='train')
-    parser.add_argument('-test', '--test_split', type=str, default='dev')
-    parser.add_argument('-dev', '--dev_split', type=str, default='test')
+    parser.add_argument('-t', '--training_split', type=str, default='dev')
+    parser.add_argument('-s', '--test_split', type=str, default='dev')
+    parser.add_argument('-d', '--dev_split', type=str, default='eval')
     parser.add_argument('-c', '--checkpoint', default=None)
 
     args = parser.parse_args()
@@ -346,8 +339,8 @@ if __name__ == '__main__':
     dev_dataset = get_data_and_feature(dev, feature_map_map)
     test_dataset = get_data_and_feature(test, feature_map_map)
 
-    ner_labels = list(set(
-        [x for y in train_dataset['ner_tags'] + dev_dataset['ner_tags'] + test_dataset['ner_tags'] for x in y]))
+    ner_labels = sorted(list(set(
+        [x for y in train_dataset['ner_tags'] + dev_dataset['ner_tags'] + test_dataset['ner_tags'] for x in y])))
     classmap = ClassLabel(num_classes=len(ner_labels), names=list(ner_labels))
     print(ner_labels)
     print(classmap)
