@@ -31,9 +31,9 @@ import argparse
 MODEL_NAME = 'microsoft/deberta-base'
 DATA_PATH = 'tagger_new/{}.new.sample.tab'
 FEATURES = ['upos', 'att', 'deprel']
-BATCH_SIZE = 4
+BATCH_SIZE = 16
 FEATURES_PATH = 'data/features.pkl'
-embedding_dim = 30
+embedding_dim = 50
 max_len = 256
 EPOCH=100
 metric = evaluate.load("seqeval")
@@ -267,6 +267,7 @@ def compute_metrics(p):
 
 
     results = metric.compute(predictions=true_predictions, references=true_labels)
+    print(results['overall_f1'], results['overall_accuracy'])
     return {
         "precision": results["overall_precision"],
         "recall": results["overall_recall"],
@@ -290,9 +291,6 @@ def write_pred(split, output_file):
             true_labels = [classmap.int2str(int(label)) for prediction, label in zip(predictions, labels) if
                            label != -100]
 
-            print('meta')
-            print(len(true_predictions))
-            print(len(true_labels))
             for i, token in enumerate(text[j]):
                 out_f.write(f'{token}\t{true_labels[i]}\t{true_predictions[i]}\n')
             out_f.write('\n')
