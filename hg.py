@@ -1,4 +1,4 @@
-
+from transformers import EarlyStoppingCallback, IntervalStrategy
 import evaluate
 import transformers
 from transformers import AutoModelForTokenClassification, Trainer, AutoTokenizer, DataCollatorForTokenClassification, \
@@ -31,11 +31,11 @@ import argparse
 MODEL_NAME = 'microsoft/deberta-base'
 DATA_PATH = 'tagger_new/{}.new.sample.tab'
 FEATURES = ['upos', 'att', 'deprel']
-BATCH_SIZE = 8
+BATCH_SIZE = 4
 FEATURES_PATH = 'data/features.pkl'
 embedding_dim = 30
 max_len = 256
-EPOCH=50
+EPOCH=100
 metric = evaluate.load("seqeval")
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, add_prefix_space=True)
 assert isinstance(tokenizer, transformers.PreTrainedTokenizerFast)
@@ -275,17 +275,6 @@ def compute_metrics(p):
     }
 
 
-training_args = TrainingArguments(
-    output_dir="./results",
-    evaluation_strategy="epoch",
-    learning_rate=0.0001,
-    per_device_train_batch_size=BATCH_SIZE,
-    per_device_eval_batch_size=BATCH_SIZE,
-    num_train_epochs=EPOCH,
-    weight_decay=0.01,
-    save_strategy='no',
-    metric_for_best_model='accuracy',
-)
 
 
 def write_pred(split, output_file):
@@ -311,9 +300,9 @@ def write_pred(split, output_file):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='add training hyperparameters')
-    parser.add_argument('-t', '--training_split', type=str, default='dev')
-    parser.add_argument('-s', '--test_split', type=str, default='dev')
-    parser.add_argument('-d', '--dev_split', type=str, default='eval')
+    parser.add_argument('-t', '--training_split', type=str, default='train')
+    parser.add_argument('-s', '--test_split', type=str, default='test')
+    parser.add_argument('-d', '--dev_split', type=str, default='dev')
     parser.add_argument('-c', '--checkpoint', default=None)
 
     args = parser.parse_args()
@@ -353,11 +342,25 @@ if __name__ == '__main__':
 
 
     dataset_dict = DatasetDict({
-        'train': test_dataset,
-        'validation': test_dataset,
+        'train': train_dataset,
+        'validation': dev_dataset,
         'test': test_dataset
     })
-
+    training_args = TrainingArguments(
+    output_dir="./results",
+    evaluation_strategy="steps",
+    learning_rate=0.0001,
+    eval_steps=len(dataset_dict['train']['labels'])//BATCH_SIZE,
+    save_steps=len(dataset_dict['train']['labels'])//BATCH_SIZE,
+    per_device_train_batch_size=BATCH_SIZE,
+    per_device_eval_batch_size=BATCH_SIZE,
+    num_train_epochs=EPOCH,
+    save_total_limit=5,
+    weight_decay=0.01,
+    load_best_model_at_end = True,
+    metric_for_best_model='f1',
+    greater_is_better=True
+)
 
     if checkpoint:
         model_config = CustomModelConfig(model_checkpoint=checkpoint, num_labels=len(classmap.names),
@@ -378,6 +381,12 @@ if __name__ == '__main__':
             eval_dataset=dataset_dict["validation"],
             data_collator=data_collator,
             tokenizer=tokenizer,
+            callbacks=[
+        EarlyStoppingCallback(
+            early_stopping_patience=3,  
+            early_stopping_threshold=0.001,
+        )
+    ],
             compute_metrics=compute_metrics
         )
 
@@ -388,5 +397,6 @@ if __name__ == '__main__':
         trainer.evaluate()
     trainer.evaluate()
     write_pred('validation', 'pred-dev.tsv')
-    write_pred('test', 'pred-test.tsv')
+    write_pred('test', 'pred-test2.tsv')
+    
 
