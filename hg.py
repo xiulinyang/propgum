@@ -78,7 +78,6 @@ def convert_data(data, feature_maps):
         arg2 = [feature_maps['arg2'].get(x.split()[5], feature_maps['arg2']['UNK']) for x in lines]
         arg3 = [feature_maps['arg3'].get(x.split()[6], feature_maps['arg3']['UNK']) for x in lines]
 
-        print(upos)
         ner = [x.split()[7] for x in lines]
         converted = {
             'tokens': text,
@@ -165,6 +164,9 @@ def preprocess_function(examples):
         pos_features.append(pos_ids)
         att_features.append(att_ids)
         deprel_features.append(deprel_ids)
+        arg1_features.append(arg1_ids)
+        arg2_features.append(arg2_ids)
+        arg3_features.append(arg3_ids)
 
 
     tokenized_inputs["labels"] = labels
