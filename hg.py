@@ -376,15 +376,15 @@ if __name__ == '__main__':
     ################# get features ###################################################
     feature_maps = get_label_maps([train, dev, test], FEATURES)
 
-    upos_map = feature_maps['upos']
-    att_map = feature_maps['att']
-    deprel_map = feature_maps['deprel']
-    feature_map_map = {'upos': upos_map, 'att': att_map, 'deprel': deprel_map}
+   # upos_map = feature_maps['upos']
+    #att_map = feature_maps['att']
+    #deprel_map = feature_maps['deprel']
+    #feature_map_map = {'upos': upos_map, 'att': att_map, 'deprel': deprel_map}
     #####################################################################################
 
-    train_dataset = get_data_and_feature(train, feature_map_map)
-    dev_dataset = get_data_and_feature(dev, feature_map_map)
-    test_dataset = get_data_and_feature(test, feature_map_map)
+    train_dataset = get_data_and_feature(train, feature_maps)
+    dev_dataset = get_data_and_feature(dev, feature_maps)
+    test_dataset = get_data_and_feature(test, feature_maps)
 
     ner_labels = sorted(list(set(
         [x for y in train_dataset['ner_tags'] + dev_dataset['ner_tags'] + test_dataset['ner_tags'] for x in y])))
