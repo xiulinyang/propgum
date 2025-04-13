@@ -31,12 +31,12 @@ import argparse
 MODEL_NAME = 'microsoft/deberta-base'
 DATA_PATH = 'tagger_new/{}.new.sample.tab'
 FEATURES = ['upos', 'att', 'deprel']
-BATCH_SIZE = 8
+BATCH_SIZE = 32
 FEATURES_PATH = 'data/features.pkl'
-embedding_dim = 50
+embedding_dim = 30
 label_all_tokens = True
 max_len = 256
-EPOCH=3
+EPOCH=50
 metric = evaluate.load("seqeval")
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, add_prefix_space=True)
 assert isinstance(tokenizer, transformers.PreTrainedTokenizerFast)
@@ -280,8 +280,8 @@ training_args = TrainingArguments(
     output_dir="./results",
     evaluation_strategy="epoch",
     learning_rate=0.0001,
-    per_device_train_batch_size=8,
-    per_device_eval_batch_size=8,
+    per_device_train_batch_size=BATCH_SIZE,
+    per_device_eval_batch_size=BATCH_SIZE,
     num_train_epochs=EPOCH,
     weight_decay=0.01,
     save_strategy='no',
@@ -318,9 +318,9 @@ def write_pred(split, output_file):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='add training hyperparameters')
-    parser.add_argument('-train', '--training_split', type=str, default='train')
-    parser.add_argument('-test', '--test_split', type=str, default='test')
-    parser.add_argument('-dev', '--dev_split', type=str, default='dev')
+    parser.add_argument('-train', '--training_split', type=str, default='dev')
+    parser.add_argument('-test', '--test_split', type=str, default='dev')
+    parser.add_argument('-dev', '--dev_split', type=str, default='eval')
     parser.add_argument('-c', '--checkpoint', default=None)
 
     args = parser.parse_args()
@@ -349,8 +349,9 @@ if __name__ == '__main__':
     ner_labels = list(set(
         [x for y in train_dataset['ner_tags'] + dev_dataset['ner_tags'] + test_dataset['ner_tags'] for x in y]))
     classmap = ClassLabel(num_classes=len(ner_labels), names=list(ner_labels))
-
+    print(ner_labels)
     print(classmap)
+    print(feature_maps)
     print('===========================')
 
     train_dataset = train_dataset.map(preprocess_function, batched=True)
@@ -358,11 +359,9 @@ if __name__ == '__main__':
     test_dataset = test_dataset.map(preprocess_function, batched=True)
 
 
-    print(train_dataset[0])
-
     dataset_dict = DatasetDict({
-        'train': train_dataset,
-        'validation': train_dataset,
+        'train': test_dataset,
+        'validation': test_dataset,
         'test': test_dataset
     })
 

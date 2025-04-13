@@ -72,7 +72,7 @@ def read_data(split):
     return raw_data_list
 
 
-train_data_list = read_data('train')
+train_data_list = read_data('dev')
 dev_data_list = read_data('dev')
 test_data_list = read_data('eval')
 
@@ -87,9 +87,29 @@ raw_data = DatasetDict({"train": train_dataset
 
 label_list = [y for x in raw_data['train']['ner_tags']+raw_data['dev']['ner_tags']+raw_data['test']['ner_tags'] for y in x]
 
-label_list= list(set(label_list))
-id2label = {id:label for id, label in enumerate(label_list)}
-label2id = {label:id for id, label in enumerate(label_list)}
+#label_list= list(set(label_list))
+#id2label = {id:label for id, label in enumerate(label_list)}
+#label2id = {label:id for id, label in enumerate(label_list)}
+
+import pickle
+
+#with open('label_mappings.pkl', 'wb') as f:
+#    pickle.dump({
+#        'id2label': id2label,
+#        'label2id': label2id,
+#        'label_list': label_list
+#    }, f)
+
+
+with open('label_mappings.pkl', 'rb') as f:  # 注意这里是'rb'模式
+    label_data = pickle.load(f)
+
+# 解包数据
+id2label = label_data['id2label']
+label2id = label_data['label2id']
+label_list = label_data['label_list']
+
+
 def tokenize_and_align_labels(examples):
   tokenized_inputs = tokenizer(examples['input'], truncation=True, is_split_into_words=True)
   labels = []
@@ -118,7 +138,7 @@ tokenized_data = raw_data.map(
 
 
 model = AutoModelForTokenClassification.from_pretrained(
-   MODEL_NAME,
+   'ner_new',
     num_labels=len(id2label),
     id2label=id2label,
     label2id = label2id
@@ -153,11 +173,14 @@ id2label= {i:label for i, label in enumerate(label_list)}
 label2id = {label:i for i, label in enumerate(label_list)}
 
 
+print(id2label)
+print(label2id)
 
 def tag_sentence(text):
   inputs = tokenizer(text, truncation=True, is_split_into_words=True,return_tensors='pt').to('cuda')
-  outputs = model(**inputs)
-  predictions = np.argmax(outputs.logits.cpu().detach().numpy(), axis=2)
+  with torch.no_grad():
+        outputs = model(**inputs)
+  predictions = np.argmax(outputs.logits, axis=2)
   return predictions
 
 
@@ -178,17 +201,74 @@ def predict_write(model,tokenized_data):
 
         p.write('\n')
 
+def tag_sentence(text):
+    model.eval()
+    model.to('cuda')
+
+    inputs = tokenizer(
+        text,
+        truncation=True,
+        is_split_into_words=True,
+        return_tensors='pt',
+        padding='max_length',  # 固定长度对齐
+        max_length=max_len
+    ).to('cuda')
+
+    with torch.no_grad():
+        outputs = model(**inputs)
+    predictions = np.argmax(outputs.logits.cpu().numpy(), axis=2)
+
+    # 关键改进：子词对齐处理
+    word_ids = inputs.word_ids(batch_index=0)
+    print(word_ids)
+    previous_word_idx = None
+    word_predictions = []
+
+    for idx, word_idx in enumerate(word_ids):
+        # 过滤特殊Token和子词
+        if word_idx is None:
+            continue
+        if word_idx == previous_word_idx:
+            continue
+
+        # 索引安全检查
+        if idx >= len(predictions[0]):
+            break
+
+        word_predictions.append(id2label[predictions[0][idx]])
+        previous_word_idx = word_idx
+
+    return word_predictions  # 现在长度等于原始句子长度
+
+def predict_write(model, tokenized_data):
+    data = tokenized_data['test']
+    with open('pred.tsv', 'w') as p:
+        for i, sent in enumerate(data['input']):
+            # 获取对齐后的预测
+            pred = tag_sentence(sent)
+
+            # 获取原始标签（已过滤-100）
+            gold = [l for l in data['ner_tags'][i] if l != -100]
+            print(gold, pred)
+            # 长度验证
+            assert len(pred) == len(sent), f"预测长度{len(pred)}≠句子长度{len(sent)}"
+            assert len(gold) == len(sent), f"标签长度{len(gold)}≠句子长度{len(sent)}"
+
+            # 写入文件
+            for word, gl, pr in zip(sent, gold, pred):
+                p.write(f'{word}\t{gl}\t{pr}\n')
+            p.write('\n')
 
 training_args = TrainingArguments(
     output_dir='my_ner_model',
     learning_rate=2e-5,
     per_device_train_batch_size=16,
     per_device_eval_batch_size=16,
-    num_train_epochs=2,
+    num_train_epochs=100,
     weight_decay=0.01,
     evaluation_strategy='epoch',
-    save_strategy='epoch',
-    load_best_model_at_end=True,
+    save_strategy='no',
+    #load_best_model_at_end=True,
     report_to=['none']
 )
 
@@ -205,7 +285,5 @@ trainer=Trainer(
 
 
 #trainer.train()
-#trainer.eval()
 #trainer.save_model(f'ner_new/')
-classifier = pipeline('ner', model='ner_new', tokenizer='ner_new')
-predict_write(classifier, tokenized_data)
+predict_write(model, tokenized_data)
