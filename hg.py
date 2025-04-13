@@ -34,7 +34,7 @@ DATA_PATH = 'tagger_new/{}.new.sample.tab'
 FEATURES = ['upos', 'att', 'deprel']
 BATCH_SIZE = 16
 FEATURES_PATH = 'data/features.pkl'
-embedding_dim = 50
+embedding_dim = 32
 max_len = 256
 EPOCH=100
 metric = evaluate.load("seqeval")
@@ -222,9 +222,9 @@ class CustomModelConfig(DebertaConfig):
         self.arg3_size = arg3_size
         self.embedding_dim = embedding_dim
         self.deprel_size = deprel_size
-        self.hidden_size = hidden_size
-        self.num_hidden_layers = num_hidden_layers
-        self.num_attention_heads = num_attention_heads
+        # self.hidden_size = hidden_size
+        # self.num_hidden_layers = num_hidden_layers
+        # self.num_attention_heads = num_attention_heads
 
     @classmethod
     def from_pretrained(cls, *args, **kwargs):
@@ -423,13 +423,15 @@ if __name__ == '__main__':
     if checkpoint:
         model_config = CustomModelConfig(model_checkpoint=checkpoint, num_labels=len(classmap.names),
                                          upos_size=len(feature_maps['upos']), att_size=len(feature_maps['att']),
-                                         deprel_size=len(feature_maps['deprel']))
+                                         deprel_size=len(feature_maps['deprel']), arg1_size=len(feature_maps['arg1']),
+                                         arg2_size=len(feature_maps['arg2']), arg3_size=len(feature_maps['arg3']),)
         model = CustomModelforClassification.from_pretrained(checkpoint, config=model_config)
         model.eval()
     else:
         model_config = CustomModelConfig(model_checkpoint=MODEL_NAME, num_labels=len(classmap.names),
                                          upos_size=len(feature_maps['upos']), att_size=len(feature_maps['att']),
-                                         deprel_size=len(feature_maps['deprel']))
+                                         deprel_size=len(feature_maps['deprel']), arg1_size=len(feature_maps['arg1']),
+                                         arg2_size=len(feature_maps['arg2']), arg3_size=len(feature_maps['arg3']),)
         model = CustomModelforClassification(model_config)
 
     trainer = Trainer(
