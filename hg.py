@@ -12,6 +12,7 @@ from datasets import load_dataset
 from datasets import Features, Sequence, Value, ClassLabel
 from transformers import DataCollatorForTokenClassification
 from pathlib import Path
+import math
 import pandas as pd
 from datasets import Dataset
 from datasets import ClassLabel
@@ -73,13 +74,21 @@ def convert_data(data, feature_maps):
         upos = [feature_maps['upos'].get(x.split()[1], feature_maps['upos']['UNK']) for x in lines]
         att = [feature_maps['att'].get(x.split()[3], feature_maps['att']['UNK']) for x in lines]
         deprel = [feature_maps['deprel'].get(x.split()[2], feature_maps['deprel']['UNK']) for x in lines]
+        arg1= [feature_maps['arg1'].get(x.split()[4], feature_maps['arg1']['UNK']) for x in lines]
+        arg2 = [feature_maps['arg2'].get(x.split()[4], feature_maps['arg2']['UNK']) for x in lines]
+        arg3 = [feature_maps['arg3'].get(x.split()[4], feature_maps['arg3']['UNK']) for x in lines]
+
+        print(upos)
         ner = [x.split()[7] for x in lines]
         converted = {
             'tokens': text,
             'upos_ids': upos,
             'att_ids': att,
             'deprel_ids': deprel,
-            'ner_tags': ner
+            'ner_tags': ner,
+            'arg1': arg1,
+            'arg2': arg2,
+            'arg3': arg3,
         }
         converted_data.append(converted)
     return converted_data
@@ -99,6 +108,9 @@ def preprocess_function(examples):
     pos_features = []
     att_features = []
     deprel_features = []
+    arg1_features = []
+    arg2_features = []
+    arg3_features = []
 
 
     for i, label in enumerate(examples["ner_tags"]):
@@ -114,6 +126,9 @@ def preprocess_function(examples):
         pos_ids = []
         att_ids = []
         deprel_ids = []
+        arg1_ids = []
+        arg2_ids = []
+        arg3_ids = []
 
         for word_idx in word_ids:
             if word_idx is None:
@@ -122,18 +137,27 @@ def preprocess_function(examples):
                 pos_ids.append(-100)
                 att_ids.append(-100)
                 deprel_ids.append(-100)
+                arg1_ids.append(-100)
+                arg2_ids.append(-100)
+                arg3_ids.append(-100)
             elif word_idx != previous_word_idx:
 
                 label_ids.append(label[word_idx])
                 pos_ids.append(examples['upos_ids'][i][word_idx])
                 att_ids.append(examples['att_ids'][i][word_idx])
                 deprel_ids.append(examples['deprel_ids'][i][word_idx])
+                arg1_ids.append(examples['arg1'][i][word_idx])
+                arg2_ids.append(examples['arg2'][i][word_idx])
+                arg3_ids.append(examples['arg3'][i][word_idx])
             else:
 
                 label_ids.append(-100)
                 pos_ids.append(-100)
                 att_ids.append(-100)
                 deprel_ids.append(-100)
+                arg1_ids.append(-100)
+                arg2_ids.append(-100)
+                arg3_ids.append(-100)
             previous_word_idx = word_idx
 
 
@@ -147,6 +171,9 @@ def preprocess_function(examples):
     tokenized_inputs["upos_ids"] = pos_features
     tokenized_inputs["att_ids"] = att_features
     tokenized_inputs["deprel_ids"] = deprel_features
+    tokenized_inputs["arg1_ids"] = arg1_features
+    tokenized_inputs["arg2_ids"] = arg2_features
+    tokenized_inputs["arg3_ids"] = arg3_features
 
     return tokenized_inputs
 
@@ -168,23 +195,31 @@ class CustomDataCollator(DataCollatorForTokenClassification):
         batch['upos_ids'] = pad_and_stack('upos_ids')
         batch['att_ids'] = pad_and_stack('att_ids')
         batch['deprel_ids'] = pad_and_stack('deprel_ids')
+        batch['arg1_ids'] = pad_and_stack('arg1_ids')
+        batch['arg2_ids'] = pad_and_stack('arg2_ids')
+        batch['arg3_ids'] = pad_and_stack('arg3_ids')
 
         return batch
 
 
 
+def get_embed_dim(feature_size: int, max_dim: int) -> int:
+    return min(max_dim, int(math.sqrt(feature_size)))
 
 
 class CustomModelConfig(DebertaConfig):
     model_type = "deberta"
 
-    def __init__(self, upos_size=0, att_size=0, deprel_size=0, embedding_dim=embedding_dim,hidden_size=768, num_hidden_layers=12,
+    def __init__(self, upos_size=0, att_size=0, deprel_size=0, arg1_size=0, arg2_size=0, arg3_size=0, embedding_dim=embedding_dim,hidden_size=768, num_hidden_layers=12,
         num_attention_heads=12, model_checkpoint=None, num_labels=0, **kwargs):
         super().__init__(**kwargs)
         self.model_checkpoint = model_checkpoint
         self.num_labels = num_labels
         self.upos_size = upos_size
         self.att_size = att_size
+        self.arg1_size = arg1_size
+        self.arg2_size = arg2_size
+        self.arg3_size = arg3_size
         self.embedding_dim = embedding_dim
         self.deprel_size = deprel_size
         self.hidden_size = hidden_size
@@ -203,6 +238,9 @@ class CustomModelConfig(DebertaConfig):
             "upos_size": self.upos_size,
             "att_size": self.att_size,
             "deprel_size": self.deprel_size,
+            "arg1_size": self.arg1_size,
+            "arg2_size": self.arg2_size,
+            "arg3_size": self.arg3_size,
             "embedding_dim": self.embedding_dim
         })
         return output
@@ -212,23 +250,45 @@ class CustomModelforClassification(DebertaPreTrainedModel):
     def __init__(self, config: CustomModelConfig, **kwargs):
         super().__init__(config, **kwargs)
         self.deberta = DebertaModel(config)
-        self.upos_embed = nn.Embedding(config.upos_size, config.embedding_dim)
-        self.att_embed = nn.Embedding(config.att_size, config.embedding_dim)
-        self.deprel_embed = nn.Embedding(config.deprel_size, config.embedding_dim)
-        self.classifier = nn.Linear(config.hidden_size + 3 * config.embedding_dim, config.num_labels)
+        self.deberta_dropout = nn.Dropout(0.3)
+        upos_dim = get_embed_dim(config.embedding_dim, config.upos_size)
+        deprel_dim = get_embed_dim(config.embedding_dim, config.deprel_size)
+        arg1_dim = get_embed_dim(config.embedding_dim, config.arg1_size)
+        arg2_dim = get_embed_dim(config.embedding_dim, config.arg2_size)
+        arg3_dim = get_embed_dim(config.embedding_dim, config.arg3_size)
 
-    def forward(self, input_ids, attention_mask, upos_ids, att_ids, deprel_ids, labels=None):
+        self.upos_embed = nn.Sequential(
+            nn.Embedding(config.upos_size, upos_dim), nn.Dropout(p=0.2))
+        self.att_embed = nn.Embedding(config.att_size, config.att_size)
+        self.deprel_embed = nn.Sequential(
+            nn.Embedding(config.deprel_size,deprel_dim), nn.Dropout(p=0.2))
+        self.arg1_embed = nn.Sequential(nn.Embedding(config.arg1_size, arg1_dim), nn.Dropout(p=0.2))
+        self.arg2_embed = nn.Sequential(nn.Embedding(config.arg2_size, arg2_dim), nn.Dropout(p=0.2))
+        self.arg3_embed = nn.Sequential(nn.Embedding(config.arg3_size, arg3_dim), nn.Dropout(p=0.2))
+        self.fusion_dropout = nn.Dropout(0.5)
+        self.classifier = nn.Linear(config.hidden_size +upos_dim+deprel_dim+arg1_dim+arg2_dim+arg3_dim+config.att_size, config.num_labels)
+
+    def forward(self, input_ids, attention_mask, upos_ids, att_ids, deprel_ids, arg1_ids, arg2_ids, arg3_ids, labels=None):
         outputs = self.deberta(input_ids, attention_mask=attention_mask)
         sequence_output = outputs.last_hidden_state  # [batch, seq_len, hidden_size]
+        sequence_output = self.deberta_dropout(sequence_output)
         labels = labels.long()
         upos_ids = torch.where(upos_ids == -100, torch.tensor(0, device=upos_ids.device), upos_ids)
         att_ids = torch.where(att_ids == -100, torch.tensor(0, device=att_ids.device), att_ids)
+        arg1_ids = torch.where(arg1_ids == -100, torch.tensor(0, device=arg1_ids.device), arg1_ids)
+        arg2_ids = torch.where(arg2_ids == -100, torch.tensor(0, device=arg2_ids.device), arg2_ids)
+        arg3_ids = torch.where(arg3_ids == -100, torch.tensor(0, device=arg3_ids.device), arg3_ids)
         deprel_ids = torch.where(deprel_ids == -100, torch.tensor(0, device=deprel_ids.device), deprel_ids)
+
         upos_emb = self.upos_embed(upos_ids)  # [batch, seq_len, embedding_dim]
         att_emb = self.att_embed(att_ids)
         deprel_emb = self.deprel_embed(deprel_ids)
+        arg1_emb = self.arg1_embed(arg1_ids)
+        arg2_emb = self.arg2_embed(arg2_ids)
+        arg3_emb = self.arg3_embed(arg3_ids)
 
-        combined = torch.cat([sequence_output, upos_emb, att_emb, deprel_emb], dim=-1)
+        combined = torch.cat([sequence_output, upos_emb, att_emb, deprel_emb, arg1_emb, arg2_emb, arg3_emb], dim=-1)
+        combined = self.fusion_dropout(combined)
         logits = self.classifier(combined)
 
         loss = None
