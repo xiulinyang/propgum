@@ -318,9 +318,9 @@ def write_pred(split, output_file):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='add training hyperparameters')
-    parser.add_argument('-train', '--training_split', type=str, default='dev')
+    parser.add_argument('-train', '--training_split', type=str, default='train')
     parser.add_argument('-test', '--test_split', type=str, default='dev')
-    parser.add_argument('-dev', '--dev_split', type=str, default='eval')
+    parser.add_argument('-dev', '--dev_split', type=str, default='test')
     parser.add_argument('-c', '--checkpoint', default=None)
 
     args = parser.parse_args()

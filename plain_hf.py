@@ -87,9 +87,9 @@ raw_data = DatasetDict({"train": train_dataset
 
 label_list = [y for x in raw_data['train']['ner_tags']+raw_data['dev']['ner_tags']+raw_data['test']['ner_tags'] for y in x]
 
-#label_list= list(set(label_list))
-#id2label = {id:label for id, label in enumerate(label_list)}
-#label2id = {label:id for id, label in enumerate(label_list)}
+label_list= sorted(list(set(label_list)))
+id2label = {id:label for id, label in enumerate(label_list)}
+label2id = {label:id for id, label in enumerate(label_list)}
 
 import pickle
 
@@ -101,13 +101,13 @@ import pickle
 #    }, f)
 
 
-with open('label_mappings.pkl', 'rb') as f:  # 注意这里是'rb'模式
-    label_data = pickle.load(f)
+#with open('label_mappings.pkl', 'rb') as f:  # 注意这里是'rb'模式
+#    label_data = pickle.load(f)
 
 # 解包数据
-id2label = label_data['id2label']
-label2id = label_data['label2id']
-label_list = label_data['label_list']
+#id2label = label_data['id2label']
+#label2id = label_data['label2id']
+#label_list = label_data['label_list']
 
 
 def tokenize_and_align_labels(examples):
@@ -138,7 +138,7 @@ tokenized_data = raw_data.map(
 
 
 model = AutoModelForTokenClassification.from_pretrained(
-   'ner_new',
+   MODEL_NAME,
     num_labels=len(id2label),
     id2label=id2label,
     label2id = label2id
@@ -284,6 +284,6 @@ trainer=Trainer(
 )
 
 
-#trainer.train()
-#trainer.save_model(f'ner_new/')
+trainer.train()
+trainer.save_model(f'ner_new/')
 predict_write(model, tokenized_data)
