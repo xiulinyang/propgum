@@ -31,7 +31,7 @@ import argparse
 
 MODEL_NAME = 'microsoft/deberta-base'
 DATA_PATH = 'tagger_new/{}.new.sample.tab'
-FEATURES = ['upos', 'att', 'deprel']
+FEATURES = ['upos', 'att', 'deprel', 'arg1', 'arg2', 'arg3']
 BATCH_SIZE = 16
 FEATURES_PATH = 'data/features.pkl'
 embedding_dim = 32
@@ -75,8 +75,8 @@ def convert_data(data, feature_maps):
         att = [feature_maps['att'].get(x.split()[3], feature_maps['att']['UNK']) for x in lines]
         deprel = [feature_maps['deprel'].get(x.split()[2], feature_maps['deprel']['UNK']) for x in lines]
         arg1= [feature_maps['arg1'].get(x.split()[4], feature_maps['arg1']['UNK']) for x in lines]
-        arg2 = [feature_maps['arg2'].get(x.split()[4], feature_maps['arg2']['UNK']) for x in lines]
-        arg3 = [feature_maps['arg3'].get(x.split()[4], feature_maps['arg3']['UNK']) for x in lines]
+        arg2 = [feature_maps['arg2'].get(x.split()[5], feature_maps['arg2']['UNK']) for x in lines]
+        arg3 = [feature_maps['arg3'].get(x.split()[6], feature_maps['arg3']['UNK']) for x in lines]
 
         print(upos)
         ner = [x.split()[7] for x in lines]
