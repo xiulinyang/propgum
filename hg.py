@@ -131,10 +131,10 @@ def preprocess_function(examples):
                 deprel_ids.append(examples['deprel_ids'][i][word_idx])
             else:
 
-                label_ids.append(label[word_idx] if label_all_tokens else -100)
-                pos_ids.append(examples['upos_ids'][i][word_idx])
-                att_ids.append(examples['att_ids'][i][word_idx])
-                deprel_ids.append(examples['deprel_ids'][i][word_idx])
+                label_ids.append(-100)
+                pos_ids.append(-100)
+                att_ids.append(-100)
+                deprel_ids.append(-100)
             previous_word_idx = word_idx
 
 
