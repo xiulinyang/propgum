@@ -445,7 +445,7 @@ if __name__ == '__main__':
             tokenizer=tokenizer,
             callbacks=[
         EarlyStoppingCallback(
-            early_stopping_patience=3,  
+            early_stopping_patience=6,  
             early_stopping_threshold=0.001,
         )
     ],
@@ -453,10 +453,8 @@ if __name__ == '__main__':
         )
 
 
-    if not checkpoint:
-        trainer.train()
-        trainer.save_model(f'ner/')
-        trainer.evaluate()
+    trainer.train()
+    trainer.save_model(f'ner_new/')
     trainer.evaluate()
     write_pred('validation', 'pred-dev.tsv')
     write_pred('test', 'pred-test2.tsv')
