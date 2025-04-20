@@ -1,6 +1,7 @@
 from transformers import EarlyStoppingCallback, IntervalStrategy
 import evaluate
 import transformers
+import os
 from transformers import AutoModelForTokenClassification, Trainer, AutoTokenizer, DataCollatorForTokenClassification, \
     Trainer, TrainingArguments
 from transformers import AutoTokenizer, AutoModel
@@ -41,6 +42,8 @@ metric = evaluate.load("seqeval")
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, add_prefix_space=True)
 assert isinstance(tokenizer, transformers.PreTrainedTokenizerFast)
 
+os.environ["WANDB_PROJECT"] = "propgum"
+os.environ["WANDB_LOG_MODEL"] = "checkpoint"
 
 def get_label_maps(splits, FEATURES):
     datasets = [x for split in splits for x in Path(DATA_PATH.format(split)).read_text().strip().split('\n\n')]
@@ -268,7 +271,17 @@ class CustomModelforClassification(DebertaPreTrainedModel):
         self.arg2_embed = nn.Sequential(nn.Embedding(config.arg2_size, arg2_dim), nn.Dropout(p=0.2))
         self.arg3_embed = nn.Sequential(nn.Embedding(config.arg3_size, arg3_dim), nn.Dropout(p=0.2))
         self.fusion_dropout = nn.Dropout(0.5)
-        self.classifier = nn.Linear(config.hidden_size +upos_dim+deprel_dim+arg1_dim+arg2_dim+arg3_dim+config.att_size, config.num_labels)
+        
+        lstm_input_dim = config.hidden_size + upos_dim + deprel_dim + arg1_dim + arg2_dim + arg3_dim + config.att_size
+        self.bilstm = nn.LSTM(
+                input_size=lstm_input_dim,
+                hidden_size=200,
+                num_layers=2,
+                dropout=0.3,
+                bidirectional=True,
+                batch_first=True)
+        
+        self.classifier = nn.Linear(2 * 200, config.num_labels)
 
     def forward(self, input_ids, attention_mask, upos_ids, att_ids, deprel_ids, arg1_ids, arg2_ids, arg3_ids, labels=None):
         outputs = self.deberta(input_ids, attention_mask=attention_mask)
@@ -291,6 +304,7 @@ class CustomModelforClassification(DebertaPreTrainedModel):
 
         combined = torch.cat([sequence_output, upos_emb, att_emb, deprel_emb, arg1_emb, arg2_emb, arg3_emb], dim=-1)
         combined = self.fusion_dropout(combined)
+        combined,_ = self.bilstm(combined)
         logits = self.classifier(combined)
 
         loss = None
@@ -419,7 +433,8 @@ if __name__ == '__main__':
     weight_decay=0.01,
     load_best_model_at_end = True,
     metric_for_best_model='f1',
-    greater_is_better=True
+    greater_is_better=True,
+    report_to="wandb"
 )
 
     if checkpoint:
@@ -454,7 +469,7 @@ if __name__ == '__main__':
 
 
     trainer.train()
-    trainer.save_model(f'ner_new/')
+    trainer.save_model(f'ner_new2/')
     trainer.evaluate()
     write_pred('validation', 'pred-dev.tsv')
     write_pred('test', 'pred-test2.tsv')
