@@ -138,9 +138,9 @@ def preprocess_function(examples):
                 pos_ids.append(-100)
                 att_ids.append(-100)
                 deprel_ids.append(-100)
-                arg1_ids.append(-100)
-                arg2_ids.append(-100)
-                arg3_ids.append(-100)
+                # arg1_ids.append(-100)
+                # arg2_ids.append(-100)
+                # arg3_ids.append(-100)
             elif word_idx != previous_word_idx:
 
                 label_ids.append(label[word_idx])
@@ -156,9 +156,9 @@ def preprocess_function(examples):
                 pos_ids.append(-100)
                 att_ids.append(-100)
                 deprel_ids.append(-100)
-                arg1_ids.append(-100)
-                arg2_ids.append(-100)
-                arg3_ids.append(-100)
+                # arg1_ids.append(-100)
+                # arg2_ids.append(-100)
+                # arg3_ids.append(-100)
             previous_word_idx = word_idx
 
 
@@ -166,9 +166,9 @@ def preprocess_function(examples):
         pos_features.append(pos_ids)
         att_features.append(att_ids)
         deprel_features.append(deprel_ids)
-        arg1_features.append(arg1_ids)
-        arg2_features.append(arg2_ids)
-        arg3_features.append(arg3_ids)
+        # arg1_features.append(arg1_ids)
+        # arg2_features.append(arg2_ids)
+        # arg3_features.append(arg3_ids)
 
 
     tokenized_inputs["labels"] = labels
@@ -214,21 +214,19 @@ def get_embed_dim(feature_size: int, max_dim: int) -> int:
 class CustomModelConfig(DebertaConfig):
     model_type = "deberta"
 
-    def __init__(self, upos_size=0, att_size=0, deprel_size=0, arg1_size=0, arg2_size=0, arg3_size=0, embedding_dim=embedding_dim,hidden_size=768, num_hidden_layers=12,
-        num_attention_heads=12, model_checkpoint=None, num_labels=0, **kwargs):
+    def __init__(self, upos_size=0, att_size=0, deprel_size=0, arg1_size=0, arg2_size=0, arg3_size=0, embedding_dim=embedding_dim,
+     model_checkpoint=None, num_labels=0, **kwargs):
         super().__init__(**kwargs)
         self.model_checkpoint = model_checkpoint
         self.num_labels = num_labels
         self.upos_size = upos_size
         self.att_size = att_size
-        self.arg1_size = arg1_size
-        self.arg2_size = arg2_size
-        self.arg3_size = arg3_size
+        # self.arg1_size = arg1_size
+        # self.arg2_size = arg2_size
+        # self.arg3_size = arg3_size
         self.embedding_dim = embedding_dim
         self.deprel_size = deprel_size
-        # self.hidden_size = hidden_size
-        # self.num_hidden_layers = num_hidden_layers
-        # self.num_attention_heads = num_attention_heads
+
 
     @classmethod
     def from_pretrained(cls, *args, **kwargs):
@@ -242,9 +240,9 @@ class CustomModelConfig(DebertaConfig):
             "upos_size": self.upos_size,
             "att_size": self.att_size,
             "deprel_size": self.deprel_size,
-            "arg1_size": self.arg1_size,
-            "arg2_size": self.arg2_size,
-            "arg3_size": self.arg3_size,
+            # "arg1_size": self.arg1_size,
+            # "arg2_size": self.arg2_size,
+            # "arg3_size": self.arg3_size,
             "embedding_dim": self.embedding_dim
         })
         return output
@@ -257,9 +255,9 @@ class CustomModelforClassification(DebertaPreTrainedModel):
         self.deberta_dropout = nn.Dropout(0.3)
         upos_dim = get_embed_dim(config.embedding_dim, config.upos_size)
         deprel_dim = get_embed_dim(config.embedding_dim, config.deprel_size)
-        arg1_dim = get_embed_dim(config.embedding_dim, config.arg1_size)
-        arg2_dim = get_embed_dim(config.embedding_dim, config.arg2_size)
-        arg3_dim = get_embed_dim(config.embedding_dim, config.arg3_size)
+        # arg1_dim = get_embed_dim(config.embedding_dim, config.arg1_size)
+        # arg2_dim = get_embed_dim(config.embedding_dim, config.arg2_size)
+        # arg3_dim = get_embed_dim(config.embedding_dim, config.arg3_size)
         att_dim = get_embed_dim(config.embedding_dim, config.att_size)
         
         
@@ -267,13 +265,13 @@ class CustomModelforClassification(DebertaPreTrainedModel):
             nn.Embedding(config.upos_size, upos_dim), nn.Dropout(p=0.2))
         self.deprel_embed = nn.Sequential(
             nn.Embedding(config.deprel_size,deprel_dim), nn.Dropout(p=0.2))
-        self.arg1_embed = nn.Sequential(nn.Embedding(config.arg1_size, arg1_dim), nn.Dropout(p=0.2))
-        self.arg2_embed = nn.Sequential(nn.Embedding(config.arg2_size, arg2_dim), nn.Dropout(p=0.2))
-        self.arg3_embed = nn.Sequential(nn.Embedding(config.arg3_size, arg3_dim), nn.Dropout(p=0.2))
+        # self.arg1_embed = nn.Sequential(nn.Embedding(config.arg1_size, arg1_dim), nn.Dropout(p=0.2))
+        # self.arg2_embed = nn.Sequential(nn.Embedding(config.arg2_size, arg2_dim), nn.Dropout(p=0.2))
+        # self.arg3_embed = nn.Sequential(nn.Embedding(config.arg3_size, arg3_dim), nn.Dropout(p=0.2))
         self.att_embed = nn.Sequential(nn.Embedding(config.att_size, att_dim), nn.Dropout(p=0.2))
         self.fusion_dropout = nn.Dropout(0.2)
-        
-        lstm_input_dim = config.hidden_size + upos_dim + deprel_dim + arg1_dim + arg2_dim + arg3_dim + att_dim
+        lstm_input_dim = config.hidden_size + upos_dim + deprel_dim + att_dim
+        # lstm_input_dim = config.hidden_size + upos_dim + deprel_dim + arg1_dim + arg2_dim + arg3_dim + att_dim
         self.bilstm = nn.LSTM(
                 input_size=lstm_input_dim,
                 hidden_size=200,
@@ -291,21 +289,21 @@ class CustomModelforClassification(DebertaPreTrainedModel):
         labels = labels.long()
         upos_ids = torch.where(upos_ids == -100, torch.tensor(0, device=upos_ids.device), upos_ids)
         att_ids = torch.where(att_ids == -100, torch.tensor(0, device=att_ids.device), att_ids)
-        arg1_ids = torch.where(arg1_ids == -100, torch.tensor(0, device=arg1_ids.device), arg1_ids)
-        arg2_ids = torch.where(arg2_ids == -100, torch.tensor(0, device=arg2_ids.device), arg2_ids)
-        arg3_ids = torch.where(arg3_ids == -100, torch.tensor(0, device=arg3_ids.device), arg3_ids)
+        # arg1_ids = torch.where(arg1_ids == -100, torch.tensor(0, device=arg1_ids.device), arg1_ids)
+        # arg2_ids = torch.where(arg2_ids == -100, torch.tensor(0, device=arg2_ids.device), arg2_ids)
+        # arg3_ids = torch.where(arg3_ids == -100, torch.tensor(0, device=arg3_ids.device), arg3_ids)
         deprel_ids = torch.where(deprel_ids == -100, torch.tensor(0, device=deprel_ids.device), deprel_ids)
 
         upos_emb = self.upos_embed(upos_ids)  # [batch, seq_len, embedding_dim]
         att_emb = self.att_embed(att_ids)
         deprel_emb = self.deprel_embed(deprel_ids)
-        arg1_emb = self.arg1_embed(arg1_ids)
-        arg2_emb = self.arg2_embed(arg2_ids)
-        arg3_emb = self.arg3_embed(arg3_ids)
-
-        combined = torch.cat([sequence_output, upos_emb, att_emb, deprel_emb, arg1_emb, arg2_emb, arg3_emb], dim=-1)
+        # arg1_emb = self.arg1_embed(arg1_ids)
+        # arg2_emb = self.arg2_embed(arg2_ids)
+        # arg3_emb = self.arg3_embed(arg3_ids)
+        combined = torch.cat([sequence_output, upos_emb, att_emb, deprel_emb], dim=-1)
+        # combined = torch.cat([sequence_output, upos_emb, att_emb, deprel_emb, arg1_emb, arg2_emb, arg3_emb], dim=-1)
         combined = self.fusion_dropout(combined)
-        combined,_ = self.bilstm(combined)
+        combined, _ = self.bilstm(combined)
         logits = self.classifier(combined)
 
         loss = None
@@ -353,14 +351,12 @@ def compute_metrics(p):
     }
 
 
-
-
 def write_pred(split, output_file):
     result = trainer.predict(dataset_dict[split])
     prediction = np.argmax(result.predictions, axis=2)
     label = result.label_ids
     text = [x['tokens'] for x in dataset_dict[split]]
-    labels = [x['ner_tags'] for x in dataset_dict[split]]
+    # labels = [x['ner_tags'] for x in dataset_dict[split]]
     with open(output_file, 'w') as out_f:
         for j, (predictions, labels) in enumerate(zip(prediction, label)):
             true_predictions = [classmap.int2str(int(prediction)) for prediction, label in zip(predictions, labels) if
