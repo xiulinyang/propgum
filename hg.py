@@ -32,7 +32,7 @@ import argparse
 
 MODEL_NAME = 'microsoft/deberta-base'
 DATA_PATH = 'tagger_new/{}.new.sample.tab'
-FEATURES = ['upos', 'att', 'deprel', 'arg1', 'arg2', 'arg3']
+FEATURES = ['upos', 'att', 'deprel']
 BATCH_SIZE = 16
 FEATURES_PATH = 'data/features.pkl'
 embedding_dim = 32
@@ -43,7 +43,6 @@ tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, add_prefix_space=True)
 assert isinstance(tokenizer, transformers.PreTrainedTokenizerFast)
 
 os.environ["WANDB_PROJECT"] = "propgum"
-os.environ["WANDB_LOG_MODEL"] = "checkpoint"
 
 def get_label_maps(splits, FEATURES):
     datasets = [x for split in splits for x in Path(DATA_PATH.format(split)).read_text().strip().split('\n\n')]
@@ -77,9 +76,9 @@ def convert_data(data, feature_maps):
         upos = [feature_maps['upos'].get(x.split()[1], feature_maps['upos']['UNK']) for x in lines]
         att = [feature_maps['att'].get(x.split()[3], feature_maps['att']['UNK']) for x in lines]
         deprel = [feature_maps['deprel'].get(x.split()[2], feature_maps['deprel']['UNK']) for x in lines]
-        arg1= [feature_maps['arg1'].get(x.split()[4], feature_maps['arg1']['UNK']) for x in lines]
-        arg2 = [feature_maps['arg2'].get(x.split()[5], feature_maps['arg2']['UNK']) for x in lines]
-        arg3 = [feature_maps['arg3'].get(x.split()[6], feature_maps['arg3']['UNK']) for x in lines]
+        #arg1= [feature_maps['arg1'].get(x.split()[4], feature_maps['arg1']['UNK']) for x in lines]
+        #arg2 = [feature_maps['arg2'].get(x.split()[5], feature_maps['arg2']['UNK']) for x in lines]
+        #arg3 = [feature_maps['arg3'].get(x.split()[6], feature_maps['arg3']['UNK']) for x in lines]
 
         ner = [x.split()[7] for x in lines]
         converted = {
@@ -88,9 +87,9 @@ def convert_data(data, feature_maps):
             'att_ids': att,
             'deprel_ids': deprel,
             'ner_tags': ner,
-            'arg1': arg1,
-            'arg2': arg2,
-            'arg3': arg3,
+         #   'arg1': arg1,
+         #   'arg2': arg2,
+         #   'arg3': arg3,
         }
         converted_data.append(converted)
     return converted_data
@@ -148,9 +147,9 @@ def preprocess_function(examples):
                 pos_ids.append(examples['upos_ids'][i][word_idx])
                 att_ids.append(examples['att_ids'][i][word_idx])
                 deprel_ids.append(examples['deprel_ids'][i][word_idx])
-                arg1_ids.append(examples['arg1'][i][word_idx])
-                arg2_ids.append(examples['arg2'][i][word_idx])
-                arg3_ids.append(examples['arg3'][i][word_idx])
+               # arg1_ids.append(examples['arg1'][i][word_idx])
+               # arg2_ids.append(examples['arg2'][i][word_idx])
+               # arg3_ids.append(examples['arg3'][i][word_idx])
             else:
 
                 label_ids.append(-100)
@@ -176,9 +175,9 @@ def preprocess_function(examples):
     tokenized_inputs["upos_ids"] = pos_features
     tokenized_inputs["att_ids"] = att_features
     tokenized_inputs["deprel_ids"] = deprel_features
-    tokenized_inputs["arg1_ids"] = arg1_features
-    tokenized_inputs["arg2_ids"] = arg2_features
-    tokenized_inputs["arg3_ids"] = arg3_features
+    #tokenized_inputs["arg1_ids"] = arg1_features
+    #tokenized_inputs["arg2_ids"] = arg2_features
+    #tokenized_inputs["arg3_ids"] = arg3_features
 
     return tokenized_inputs
 
@@ -200,9 +199,9 @@ class CustomDataCollator(DataCollatorForTokenClassification):
         batch['upos_ids'] = pad_and_stack('upos_ids')
         batch['att_ids'] = pad_and_stack('att_ids')
         batch['deprel_ids'] = pad_and_stack('deprel_ids')
-        batch['arg1_ids'] = pad_and_stack('arg1_ids')
-        batch['arg2_ids'] = pad_and_stack('arg2_ids')
-        batch['arg3_ids'] = pad_and_stack('arg3_ids')
+       # batch['arg1_ids'] = pad_and_stack('arg1_ids')
+       # batch['arg2_ids'] = pad_and_stack('arg2_ids')
+       # batch['arg3_ids'] = pad_and_stack('arg3_ids')
 
         return batch
 
@@ -261,27 +260,29 @@ class CustomModelforClassification(DebertaPreTrainedModel):
         arg1_dim = get_embed_dim(config.embedding_dim, config.arg1_size)
         arg2_dim = get_embed_dim(config.embedding_dim, config.arg2_size)
         arg3_dim = get_embed_dim(config.embedding_dim, config.arg3_size)
-
+        att_dim = get_embed_dim(config.embedding_dim, config.att_size)
+        
+        
         self.upos_embed = nn.Sequential(
             nn.Embedding(config.upos_size, upos_dim), nn.Dropout(p=0.2))
-        self.att_embed = nn.Embedding(config.att_size, config.att_size)
         self.deprel_embed = nn.Sequential(
             nn.Embedding(config.deprel_size,deprel_dim), nn.Dropout(p=0.2))
         self.arg1_embed = nn.Sequential(nn.Embedding(config.arg1_size, arg1_dim), nn.Dropout(p=0.2))
         self.arg2_embed = nn.Sequential(nn.Embedding(config.arg2_size, arg2_dim), nn.Dropout(p=0.2))
         self.arg3_embed = nn.Sequential(nn.Embedding(config.arg3_size, arg3_dim), nn.Dropout(p=0.2))
-        self.fusion_dropout = nn.Dropout(0.5)
+        self.att_embed = nn.Sequential(nn.Embedding(config.att_size, att_dim), nn.Dropout(p=0.2))
+        self.fusion_dropout = nn.Dropout(0.2)
         
-        lstm_input_dim = config.hidden_size + upos_dim + deprel_dim + arg1_dim + arg2_dim + arg3_dim + config.att_size
+        lstm_input_dim = config.hidden_size + upos_dim + deprel_dim + arg1_dim + arg2_dim + arg3_dim + att_dim
         self.bilstm = nn.LSTM(
                 input_size=lstm_input_dim,
                 hidden_size=200,
                 num_layers=2,
-                dropout=0.3,
+                dropout=0.1,
                 bidirectional=True,
                 batch_first=True)
         
-        self.classifier = nn.Linear(2 * 200, config.num_labels)
+        self.classifier = nn.Linear(400, config.num_labels)
 
     def forward(self, input_ids, attention_mask, upos_ids, att_ids, deprel_ids, arg1_ids, arg2_ids, arg3_ids, labels=None):
         outputs = self.deberta(input_ids, attention_mask=attention_mask)
@@ -469,7 +470,7 @@ if __name__ == '__main__':
 
 
     trainer.train()
-    trainer.save_model(f'ner_new2/')
+    trainer.save_model(f'ner_new/')
     trainer.evaluate()
     write_pred('validation', 'pred-dev.tsv')
     write_pred('test', 'pred-test2.tsv')
