@@ -442,10 +442,14 @@ if __name__ == '__main__':
         model = CustomModelforClassification.from_pretrained(checkpoint, config=model_config)
         model.eval()
     else:
+        # model_config = CustomModelConfig(model_checkpoint=MODEL_NAME, num_labels=len(classmap.names),
+        #                                  upos_size=len(feature_maps['upos']), att_size=len(feature_maps['att']),
+        #                                  deprel_size=len(feature_maps['deprel']), arg1_size=len(feature_maps['arg1']),
+        #                                  arg2_size=len(feature_maps['arg2']), arg3_size=len(feature_maps['arg3']),)
         model_config = CustomModelConfig(model_checkpoint=MODEL_NAME, num_labels=len(classmap.names),
                                          upos_size=len(feature_maps['upos']), att_size=len(feature_maps['att']),
-                                         deprel_size=len(feature_maps['deprel']), arg1_size=len(feature_maps['arg1']),
-                                         arg2_size=len(feature_maps['arg2']), arg3_size=len(feature_maps['arg3']),)
+                                         deprel_size=len(feature_maps['deprel']), arg1_size=0,
+                                         arg2_size=0, arg3_size=0,)
         model = CustomModelforClassification(model_config)
 
     trainer = Trainer(
