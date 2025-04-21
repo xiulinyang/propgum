@@ -31,7 +31,7 @@ from transformers import DebertaConfig
 import argparse
 
 MODEL_NAME = 'microsoft/deberta-base'
-DATA_PATH = 'tagger_new/{}.new.sample.tab'
+DATA_PATH = 'tagger_new/{}.sense.only.tab'
 FEATURES = ['upos', 'att', 'deprel']
 BATCH_SIZE = 16
 FEATURES_PATH = 'data/features.pkl'
