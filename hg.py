@@ -282,7 +282,7 @@ class CustomModelforClassification(DebertaPreTrainedModel):
         
         self.classifier = nn.Linear(400, config.num_labels)
 
-    def forward(self, input_ids, attention_mask, upos_ids, att_ids, deprel_ids, arg1_ids, arg2_ids, arg3_ids, labels=None):
+    def forward(self, input_ids, attention_mask, upos_ids, att_ids, deprel_ids, labels=None):
         outputs = self.deberta(input_ids, attention_mask=attention_mask)
         sequence_output = outputs.last_hidden_state  # [batch, seq_len, hidden_size]
         sequence_output = self.deberta_dropout(sequence_output)
