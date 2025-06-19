@@ -116,9 +116,9 @@ def preprocess_function(examples):
 
 
     for i, label in enumerate(examples["ner_tags"]):
-
+        print(label)
         label = classmap.str2int(label)
-
+        print(label)
 
         word_ids = tokenized_inputs.word_ids(batch_index=i)
         previous_word_idx = None
