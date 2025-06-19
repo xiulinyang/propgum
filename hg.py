@@ -31,7 +31,7 @@ from transformers import DebertaConfig
 import argparse
 
 MODEL_NAME = 'microsoft/deberta-base'
-DATA_PATH = 'tagger_new/{}.sense.only.tab'
+DATA_PATH = 'tagger_new/{}.new.sample.tab'
 FEATURES = ['upos', 'att', 'deprel']
 BATCH_SIZE = 16
 FEATURES_PATH = 'data/features.pkl'
@@ -46,6 +46,7 @@ assert isinstance(tokenizer, transformers.PreTrainedTokenizerFast)
 os.environ["WANDB_PROJECT"] = "propgum"
 
 def get_label_maps(splits, FEATURES):
+
     datasets = [x for split in splits for x in Path(DATA_PATH.format(split)).read_text().strip().split('\n\n')]
     label_lists = {f: [] for f in FEATURES}
     label_map = {}
