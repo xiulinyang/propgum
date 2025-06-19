@@ -35,9 +35,10 @@ DATA_PATH = 'tagger_new/{}.sense.only.tab'
 FEATURES = ['upos', 'att', 'deprel']
 BATCH_SIZE = 16
 FEATURES_PATH = 'data/features.pkl'
-embedding_dim = 32
+embedding_dim = 64
 max_len = 256
-EPOCH=100
+EPOCH=10
+LR=0.00001
 metric = evaluate.load("seqeval")
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, add_prefix_space=True)
 assert isinstance(tokenizer, transformers.PreTrainedTokenizerFast)
@@ -420,7 +421,7 @@ if __name__ == '__main__':
     training_args = TrainingArguments(
     output_dir="./results",
     evaluation_strategy="steps",
-    learning_rate=0.0001,
+    learning_rate=LR,
     eval_steps=len(dataset_dict['train']['labels'])//BATCH_SIZE,
     save_steps=len(dataset_dict['train']['labels'])//BATCH_SIZE,
     per_device_train_batch_size=BATCH_SIZE,

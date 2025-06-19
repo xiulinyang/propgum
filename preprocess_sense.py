@@ -1,9 +1,11 @@
 from glob import glob
 from pathlib import Path
+from tqdm import tqdm
+
 tabs = glob('tagger_new/*.tab')
 
 
-for tab in tabs:
+for tab in tqdm(tabs):
     tab_name = Path(tab).stem.split('.')[0]
     file_name = f'{tab_name}.sense.only.tab'
     with open(f'tagger_new/{file_name}', 'w') as f:
