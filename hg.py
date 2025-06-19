@@ -255,12 +255,12 @@ class CustomModelforClassification(DebertaPreTrainedModel):
         super().__init__(config, **kwargs)
         self.deberta = DebertaModel(config)
         self.deberta_dropout = nn.Dropout(0.3)
-        upos_dim = get_embed_dim(config.embedding_dim, config.upos_size)
-        deprel_dim = get_embed_dim(config.embedding_dim, config.deprel_size)
+        upos_dim = get_embed_dim(config.upos_size,config.embedding_dim)
+        deprel_dim = get_embed_dim(config.deprel_size,config.embedding_dim)
         # arg1_dim = get_embed_dim(config.embedding_dim, config.arg1_size)
         # arg2_dim = get_embed_dim(config.embedding_dim, config.arg2_size)
         # arg3_dim = get_embed_dim(config.embedding_dim, config.arg3_size)
-        att_dim = get_embed_dim(config.embedding_dim, config.att_size)
+        att_dim = get_embed_dim(config.att_size,config.embedding_dim)
         
         
         self.upos_embed = nn.Sequential(
@@ -403,6 +403,7 @@ if __name__ == '__main__':
 
     ner_labels = sorted(list(set(
         [x for y in train_dataset['ner_tags'] + dev_dataset['ner_tags'] + test_dataset['ner_tags'] for x in y])))
+    global classmap
     classmap = ClassLabel(num_classes=len(ner_labels), names=list(ner_labels))
     print(ner_labels)
     print(classmap)
